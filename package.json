@@ -1,18 +1,14 @@
 {
-  "name": "check10-h2h",
+  "name": "check10-online",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "A multiplayer version of the Check 10 board game",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "express": "^5.1.0",
-    "socket.io": "^4.8.1",
-    "uuid": "^11.1.0"
+    "ws": "^8.13.0"
   }
 }

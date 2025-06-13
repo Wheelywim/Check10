@@ -3,16 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Check 10 - Online Multiplayer</title>
+    <title>Check 10 - Strategy Board Game (Online)</title>
     <style>
-        /* CSS is identical to your original file, no changes needed here */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', 'Arial', sans-serif; background: #2E2822; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        
+        /* --- Waiting Screen Styles --- */
+        #waitingScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(46, 40, 34, 0.95);
+            color: #F4E9DB;
+            display: flex; justify-content: center; align-items: center; text-align: center;
+            font-size: 2em; z-index: 2000; flex-direction: column;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3; border-top: 8px solid #8B4513;
+            border-radius: 50%; width: 60px; height: 60px;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
         .game-container { background: #F4E9DB; border-radius: 15px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); max-width: 1100px; width: 100%; }
         .game-header { text-align: center; margin-bottom: 20px; }
         .game-title { font-size: 2.8em; font-weight: bold; color: #654321; margin-bottom: 5px; }
         .game-subtitle { color: #8B4513; font-size: 1.1em; }
-        .main-content { display: flex; justify-content: center; align-items: flex-start; gap: 30px; }
+        .main-content { display: flex; justify-content: center; align-items: center; gap: 30px; }
         .current-turn { margin-bottom: 15px; text-align: center; font-size: 1.3em; font-weight: bold; padding: 10px 20px; border-radius: 8px; transition: all 0.3s ease; border: 2px solid transparent; }
         .white-turn { background: #F0D9B5; color: #654321; border-color: #D2B48C; }
         .black-turn { background: #B58863; color: #FFFFFF; border-color: #8B4513; }
@@ -26,12 +41,11 @@
         .rank-labels .coordinate-label { height: 60px; display: flex; align-items: center; justify-content: center; }
         .file-labels .coordinate-label { width: 60px; display: flex; align-items: center; justify-content: center; }
         .square { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; position: relative; }
-        .square.light { background: #F0D9B5; }
-        .square.dark { background: #B58863; }
+        .square.light { background: #F0D9B5; } .square.dark { background: #B58863; }
         .square.valid-move { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 0.8); }
-        .square.combination { box-shadow: inset 0 0 0 4px rgba(60, 179, 113, 1); animation: pulse 1s infinite; }
+        .square.combination { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 1); animation: pulse 1s infinite; }
         .square.promotion-choice { box-shadow: inset 0 0 0 4px rgba(255, 140, 0, 0.9); animation: promotionPulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { box-shadow: inset 0 0 0 4px rgba(60, 179, 113, 0.9); } 50% { box-shadow: inset 0 0 0 7px rgba(60, 179, 113, 1); } }
+        @keyframes pulse { 0%, 100% { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 0.9); } 50% { box-shadow: inset 0 0 0 7px rgba(218, 165, 32, 1); } }
         @keyframes promotionPulse { 0%, 100% { box-shadow: inset 0 0 0 4px rgba(255, 140, 0, 0.9); } 50% { box-shadow: inset 0 0 0 7px rgba(255, 140, 0, 1); } }
         .piece { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); transition: transform 0.4s ease-in-out; position: relative; }
         .piece:hover { transform: scale(1.1); }
@@ -39,8 +53,8 @@
         .piece.black { background: radial-gradient(circle, #333 0%, #000 100%); color: white; border: 2px solid #555; }
         .piece.promoted { border: 3px solid gold; box-shadow: 0 0 15px rgba(255, 215, 0, 0.6); }
         .piece.selected { transform: scale(1.2); box-shadow: 0 0 20px rgba(218, 165, 32, 0.8); }
-        .info-panel { flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 250px; }
-        .message { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; min-height: 50px; display: flex; align-items: center; justify-content: center; text-align: center; }
+        .info-panel { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 250px; }
+        .message { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; }
         .message.info { background: rgba(139, 69, 19, 0.1); color: #654321; border: 1px solid #D2B48C; }
         .controls { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); }
@@ -52,362 +66,215 @@
         .score-item { text-align: center; }
         .score-label { font-weight: bold; margin-bottom: 5px; color: #654321; }
         .score-value { font-size: 1.5em; font-weight: bold; color: #2E2822; }
-        @media (max-width: 950px) { .main-content { flex-direction: column; align-items: center; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
+        @media (max-width: 950px) { .main-content { flex-direction: column; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
         @media (max-width: 600px) { .game-container { padding: 15px; } .board-wrapper { padding: 10px; } .square { width: 40px; height: 40px; } .piece { width: 30px; height: 30px; font-size: 14px; } .rank-labels { left: 2px; top: 10px; height: 320px; } .file-labels { bottom: 2px; left: 10px; width: 320px; } .rank-labels .coordinate-label { height: 40px; } .file-labels .coordinate-label { width: 40px; } .coordinate-label { font-size: 10px; } .controls { gap: 8px; } .btn { padding: 10px 16px; font-size: 14px; } }
     </style>
 </head>
 <body>
-    <div class="game-container">
+    <div id="waitingScreen">
+        <div>
+            <div class="spinner"></div>
+            <p>Waiting for an opponent...</p>
+        </div>
+    </div>
+
+    <div class="game-container" style="display: none;">
         <div class="game-header">
             <h1 class="game-title">CHECK 10</h1>
-            <p class="game-subtitle">Online Multiplayer by Julius Bosma</p>
+            <p class="game-subtitle" id="playerInfo">Strategic Board Game (Online)</p>
         </div>
 
         <div class="main-content">
             <div class="board-container">
                 <div class="board-wrapper">
-                    <!-- Coordinate labels are unchanged -->
                     <div class="rank-labels">
-                        <div class="coordinate-label">8</div> <div class="coordinate-label">7</div>
-                        <div class="coordinate-label">6</div> <div class="coordinate-label">5</div>
-                        <div class="coordinate-label">4</div> <div class="coordinate-label">3</div>
-                        <div class="coordinate-label">2</div> <div class="coordinate-label">1</div>
+                        <div class="coordinate-label">8</div> <div class="coordinate-label">7</div> <div class="coordinate-label">6</div> <div class="coordinate-label">5</div>
+                        <div class="coordinate-label">4</div> <div class="coordinate-label">3</div> <div class="coordinate-label">2</div> <div class="coordinate-label">1</div>
                     </div>
                     <div class="file-labels">
-                        <div class="coordinate-label">a</div> <div class="coordinate-label">b</div>
-                        <div class="coordinate-label">c</div> <div class="coordinate-label">d</div>
-                        <div class="coordinate-label">e</div> <div class="coordinate-label">f</div>
-                        <div class="coordinate-label">g</div> <div class="coordinate-label">h</div>
+                        <div class="coordinate-label">a</div> <div class="coordinate-label">b</div> <div class="coordinate-label">c</div> <div class="coordinate-label">d</div>
+                        <div class="coordinate-label">e</div> <div class="coordinate-label">f</div> <div class="coordinate-label">g</div> <div class="coordinate-label">h</div>
                     </div>
                     <div class="board" id="gameBoard"></div>
                 </div>
             </div>
             
             <div class="info-panel">
-                <div class="current-turn" id="currentTurn">Connecting to server...</div>
+                <div class="current-turn white-turn" id="currentTurn">Loading...</div>
                 <div class="score-display">
-                    <div class="score-item">
-                        <div class="score-label">White Score</div>
-                        <div class="score-value" id="whiteScore">0</div>
-                    </div>
-                    <div class="score-item">
-                        <div class="score-label">Black Score</div>
-                        <div class="score-value" id="blackScore">0</div>
-                    </div>
+                    <div class="score-item"> <div class="score-label">White Score</div> <div class="score-value" id="whiteScore">0</div> </div>
+                    <div class="score-item"> <div class="score-label">Black Score</div> <div class="score-value" id="blackScore">0</div> </div>
                 </div>
-                <div class="message info" id="gameMessage">Please wait, finding a game.</div>
+                <div class="message info" id="gameMessage">Connecting to server...</div>
                 <div class="controls">
-                    <button class="btn btn-primary" onclick="window.location.reload()">New Game</button>
-                    <p id="playerInfo" style="width: 100%; text-align: center; margin-top: 10px; color: #654321;"></p>
+                    <button class="btn btn-primary" onclick="undoMove()" id="undoBtn" disabled>↶ Undo</button>
+                    <button class="btn btn-primary" onclick="redoMove()" id="redoBtn" disabled>↷ Redo</button>
+                    <button class="btn btn-primary" onclick="newGame()">New Game</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- This script is served by the Socket.IO server -->
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // ===================================
-        // 1. GLOBAL VARIABLES & INITIALIZATION
-        // ===================================
-        const socket = io();
-        let game; // This will hold our local instance of the game class
-        let playerColor = null; // 'white' or 'black'
-        let roomId = null;
+        const socket = new WebSocket(`ws://${window.location.host}`);
+        
+        let myColor = null;
+        let gameState = {};
+        let selectedPosition = null;
 
-        class Check10Game {
-            constructor() {
-                // Client-side state (a mirror of the server's state)
-                this.board = [];
-                this.currentPlayer = 'white';
-                this.whiteScore = 0;
-                this.blackScore = 0;
-                this.gameOver = false;
-                this.gameState = 'playing'; // 'playing' or 'choosing_promotion'
-                this.promotionChoices = null;
+        const boardElement = document.getElementById('gameBoard');
+        const messageElement = document.getElementById('gameMessage');
+        const turnElement = document.getElementById('currentTurn');
+        const whiteScoreElement = document.getElementById('whiteScore');
+        const blackScoreElement = document.getElementById('blackScore');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
 
-                // UI-specific state
-                this.selectedPiece = null;
-                this.selectedPosition = null;
-                this.isAnimating = false;
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
 
-                // DOM Elements
-                this.boardElement = document.getElementById('gameBoard');
-                this.messageElement = document.getElementById('gameMessage');
-                this.turnElement = document.getElementById('currentTurn');
-                this.whiteScoreElement = document.getElementById('whiteScore');
-                this.blackScoreElement = document.getElementById('blackScore');
+            switch (data.type) {
+                case 'waiting':
+                    document.getElementById('waitingScreen').style.display = 'flex';
+                    document.querySelector('.game-container').style.display = 'none';
+                    break;
+                case 'gameStart':
+                    myColor = data.playerColor;
+                    document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`;
+                    document.getElementById('waitingScreen').style.display = 'none';
+                    document.querySelector('.game-container').style.display = 'block';
+                    // Fallthrough to render the initial state
+                case 'gameStateUpdate':
+                    gameState = data.gameState;
+                    renderGame(gameState);
+                    break;
+                case 'opponentDisconnect':
+                    messageElement.textContent = "Your opponent has disconnected. Please start a new game.";
+                    turnElement.textContent = "Game Over";
+                    turnElement.className = "current-turn";
+                    boardElement.style.pointerEvents = 'none'; // Disable board
+                    break;
             }
+        };
 
-            // --- Main method to sync local state with server state ---
-            syncWithServer(serverState) {
-                const lastMove = serverState.lastMoveInfo;
-                const animate = lastMove && this.board.length > 0; // Animate only if there's a previous board state
-                
-                if (animate) {
-                    this.isAnimating = true;
-                    this.animateMove(lastMove.from.row, lastMove.from.col, lastMove.to.row, lastMove.to.col)
-                        .then(() => {
-                            this.updateLocalState(serverState);
-                            this.renderBoard();
-                            this.highlightLastMove(serverState);
-                            this.isAnimating = false;
-                        });
-                } else {
-                    this.updateLocalState(serverState);
-                    this.renderBoard();
-                    this.highlightLastMove(serverState);
-                }
-            }
+        socket.onclose = () => {
+            messageElement.textContent = "Connection to server lost. Please refresh the page.";
+            boardElement.style.pointerEvents = 'none';
+        };
 
-            updateLocalState(serverState) {
-                this.board = serverState.board;
-                this.currentPlayer = serverState.currentPlayer;
-                this.whiteScore = serverState.whiteScore;
-                this.blackScore = serverState.blackScore;
-                this.gameOver = serverState.gameOver;
-                this.gameState = serverState.gameState;
-                this.promotionChoices = serverState.promotionChoices;
-
-                this.updateUI();
-            }
-
-            // --- Rendering and UI Updates ---
-            renderBoard() {
-                this.clearHighlights();
-                const fragment = document.createDocumentFragment();
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        const square = document.createElement('div');
-                        const isLightSquare = (row + col) % 2 === 0;
-                        square.className = `square ${isLightSquare ? 'light' : 'dark'}`;
-                        square.dataset.row = row;
-                        square.dataset.col = col;
-                        
-                        const piece = this.board[row][col];
-                        if (piece) {
-                            const pieceElement = document.createElement('div');
-                            pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`;
-                            if (this.selectedPosition && this.selectedPosition.row === row && this.selectedPosition.col === col) {
-                                pieceElement.classList.add('selected');
-                            }
-                            pieceElement.textContent = piece.number;
-                            square.appendChild(pieceElement);
-                        }
-                        square.addEventListener('click', () => this.handleSquareClick(row, col));
-                        fragment.appendChild(square);
-                    }
-                }
-                this.boardElement.innerHTML = '';
-                this.boardElement.appendChild(fragment);
-            }
-
-            updateUI() {
-                // Update scores
-                this.whiteScoreElement.textContent = this.whiteScore;
-                this.blackScoreElement.textContent = this.blackScore;
-                
-                // Update turn display
-                if(this.gameOver) {
-                    this.turnElement.textContent = "Game Over";
-                    this.turnElement.className = "current-turn";
-                } else {
-                    this.turnElement.textContent = `${this.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
-                    this.turnElement.className = `current-turn ${this.currentPlayer}-turn`;
-                }
-            }
-
-            // --- Player Interaction ---
-            handleSquareClick(row, col) {
-                if (this.isAnimating || this.gameOver) return;
-                
-                // Promotion Choice Logic
-                if (this.gameState === 'choosing_promotion') {
-                    if (this.promotionChoices.some(p => p.row === row && p.col === col)) {
-                        socket.emit('promotionChoice', { roomId, choice: { row, col } });
-                    } else {
-                        this.updateMessage("Invalid choice. Please select one of the highlighted pieces.");
-                    }
-                    return;
-                }
-                
-                // Normal Move Logic
-                if (this.currentPlayer !== playerColor) {
-                    this.updateMessage("It's not your turn!");
-                    return;
-                }
-
-                const piece = this.board[row][col];
-                if (piece && piece.color === this.currentPlayer) {
-                    this.selectPiece(row, col);
-                } else if (this.selectedPiece) {
-                    // Emit move request to the server
-                    socket.emit('makeMove', {
-                        roomId: roomId,
-                        from: this.selectedPosition,
-                        to: { row, col }
-                    });
-                    // Clear local selection immediately for better UX
-                    this.selectedPiece = null;
-                    this.selectedPosition = null;
-                    this.clearHighlights();
-                    this.renderBoard(); 
-                }
-            }
-
-            selectPiece(row, col) {
-                this.selectedPiece = this.board[row][col];
-                this.selectedPosition = { row, col };
-                this.renderBoard(); // Re-render to show selection
-                this.highlightValidMoves(row, col);
-                this.updateMessage(`Selected ${this.currentPlayer} ${this.selectedPiece.number}. Click a valid square to move.`);
-            }
-
-            // --- Highlighting and Animation ---
-            clearHighlights() {
-                const squares = this.boardElement.querySelectorAll('.square');
-                squares.forEach(s => s.classList.remove('valid-move', 'combination', 'promotion-choice'));
-            }
-
-            highlightValidMoves(row, col) {
-                const validMoves = this.getValidMoves(row, col);
-                validMoves.forEach(move => {
-                    const square = this.boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`);
-                    if (square) square.classList.add('valid-move');
-                });
-            }
-
-            highlightLastMove(serverState) {
-                if (!serverState.lastMoveInfo) return;
-                
-                if (serverState.lastMoveInfo.message) {
-                    this.updateMessage(serverState.lastMoveInfo.message);
-                }
-
-                if (serverState.lastMoveInfo.combinations && serverState.lastMoveInfo.combinations.length > 0) {
-                    serverState.lastMoveInfo.combinations.forEach(combo => {
-                        combo.forEach(pos => {
-                            const square = this.boardElement.querySelector(`[data-row='${pos.row}'][data-col='${pos.col}']`);
-                            if (square) square.classList.add('combination');
-                        });
-                    });
-                    setTimeout(() => this.clearHighlights(), 2000);
-                }
-                
-                if(this.gameState === 'choosing_promotion') {
-                    this.updateMessage(`Promotion! Choose which opponent piece to remove.`);
-                    this.promotionChoices.forEach(choice => {
-                         const square = this.boardElement.querySelector(`[data-row='${choice.row}'][data-col='${choice.col}']`);
-                         if (square) square.classList.add('promotion-choice');
-                    });
-                }
-            }
-
-            animateMove(fromRow, fromCol, toRow, toCol) {
-                return new Promise(resolve => {
-                    const fromSquare = this.boardElement.querySelector(`[data-row='${fromRow}'][data-col='${fromCol}']`);
-                    const toSquare = this.boardElement.querySelector(`[data-row='${toRow}'][data-col='${toCol}']`);
-                    const pieceEl = fromSquare?.querySelector('.piece');
-
-                    if (!pieceEl || !toSquare) {
-                        resolve(); return;
-                    }
-
-                    const fromRect = fromSquare.getBoundingClientRect();
-                    const toRect = toSquare.getBoundingClientRect();
-                    const deltaX = toRect.left - fromRect.left;
-                    const deltaY = toRect.top - fromRect.top;
-
-                    pieceEl.style.zIndex = '1000';
-                    pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-                    
-                    const onTransitionEnd = () => {
-                        pieceEl.removeEventListener('transitionend', onTransitionEnd);
-                        resolve();
-                    };
-                    pieceEl.addEventListener('transitionend', onTransitionEnd);
-                });
-            }
-
-            // --- Local Helper Functions ---
-            getValidMoves(row, col) {
-                const validMoves = [];
-                const piece = this.board[row][col];
-                if (!piece) return validMoves;
-                const direction = piece.color === 'white' ? -1 : 1;
-                const newRow = row + direction;
-                if (newRow >= 0 && newRow < 8) {
-                    if (!this.board[newRow][col]) validMoves.push({ row: newRow, col });
-                    for (const deltaCol of [-1, 1]) {
-                        const newCol = col + deltaCol;
-                        if (newCol >= 0 && newCol < 8 && !this.board[newRow][newCol]) {
-                            validMoves.push({ row: newRow, col: newCol });
-                        }
-                    }
-                }
-                return validMoves;
-            }
-            updateMessage(message) { this.messageElement.textContent = message; }
+        socket.onerror = () => {
+             messageElement.textContent = "Connection error. Could not connect to the game server.";
         }
 
+        function renderGame(state) {
+            // Render board
+            const fragment = document.createDocumentFragment();
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const isLightSquare = (row + col) % 2 === 0;
+                    square.className = `square ${isLightSquare ? 'light' : 'dark'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+                    
+                    const piece = state.board[row][col];
+                    if (piece) {
+                        const pieceElement = document.createElement('div');
+                        pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`;
+                        if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) {
+                             pieceElement.classList.add('selected');
+                        }
+                        pieceElement.textContent = piece.number;
+                        square.appendChild(pieceElement);
+                    }
+                     // Highlight promotion choices sent by server
+                    if (state.gameState === 'choosing_promotion' && state.promotionChoices.some(p => p.row === row && p.col === col)) {
+                        square.classList.add('promotion-choice');
+                    }
+                    fragment.appendChild(square);
+                }
+            }
+            boardElement.innerHTML = '';
+            boardElement.appendChild(fragment);
 
-        // ===================================
-        // 2. SOCKET.IO EVENT LISTENERS
-        // ===================================
+            // Update UI elements
+            whiteScoreElement.textContent = state.whiteScore;
+            blackScoreElement.textContent = state.blackScore;
+            messageElement.textContent = state.lastMessage;
 
-        socket.on('connect', () => {
-            console.log('Connected to server with ID:', socket.id);
-        });
-
-        socket.on('waitingForOpponent', (data) => {
-            roomId = data.roomId;
-            document.getElementById('gameMessage').textContent = 'Waiting for an opponent...';
-            document.getElementById('currentTurn').textContent = `Room ID: ${roomId}`;
-            game = new Check10Game(); // Create a placeholder game object
-            game.renderBoard(); // Render an empty board
-        });
-
-        socket.on('gameStart', (data) => {
-            console.log('Game is starting!', data);
-            roomId = data.roomId;
-            const me = data.players.find(p => p.id === socket.id);
-            playerColor = me.color;
+            if(state.gameOver) {
+                turnElement.textContent = "Game Over";
+                turnElement.className = "current-turn";
+                boardElement.style.pointerEvents = 'none';
+            } else {
+                turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
+                turnElement.className = `current-turn ${state.currentPlayer}-turn`;
+                boardElement.style.pointerEvents = (state.currentPlayer === myColor) ? 'auto' : 'none';
+            }
             
-            document.getElementById('playerInfo').textContent = `You are playing as ${playerColor}.`;
-            
-            game = new Check10Game();
-            game.syncWithServer(data.initialState);
-        });
+            // Update buttons
+            undoBtn.disabled = !state.canUndo;
+            redoBtn.disabled = !state.canRedo;
+        }
+        
+        // This is a dummy function now, highlighting is done locally for responsiveness
+        function highlightValidMoves(moves) {
+            // Clear previous highlights
+            document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move'));
+            // Add new ones
+            moves.forEach(move => {
+                const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`);
+                if (square) square.classList.add('valid-move');
+            });
+        }
 
-        socket.on('gameStateUpdate', (serverState) => {
-            console.log('Received game state update from server:', serverState);
-            if(game) {
-                game.syncWithServer(serverState);
+        boardElement.addEventListener('click', (e) => {
+            const target = e.target.closest('.square');
+            if (!target) return;
+
+            const row = parseInt(target.dataset.row);
+            const col = parseInt(target.dataset.col);
+            const piece = gameState.board[row][col];
+
+            // If it's a promotion choice, send that choice to server
+            if (gameState.gameState === 'choosing_promotion' && gameState.promotionChoices.some(p => p.row === row && p.col === col)) {
+                 socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } }));
+                 return;
+            }
+
+            // If a piece of my color is clicked, select it
+            if (piece && piece.color === myColor) {
+                selectedPosition = { row, col };
+                // Get valid moves from the piece's own logic for instant feedback
+                const direction = piece.color === 'white' ? -1 : 1;
+                const validMoves = [];
+                const newRow = row + direction;
+                if (newRow >= 0 && newRow < 8 && !gameState.board[newRow][col]) validMoves.push({ row: newRow, col });
+                for (const deltaCol of [-1, 1]) {
+                    const newCol = col + deltaCol;
+                    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !gameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol });
+                }
+                highlightValidMoves(validMoves);
+                renderGame(gameState); // Re-render to show selection
+            } 
+            // If a piece is already selected, and a new square is clicked, try to move
+            else if (selectedPosition) {
+                socket.send(JSON.stringify({
+                    type: 'move',
+                    from: selectedPosition,
+                    to: { row, col }
+                }));
+                selectedPosition = null;
+                highlightValidMoves([]); // Clear highlights
             }
         });
 
-        socket.on('invalidMove', (data) => {
-            if(game) {
-                game.updateMessage(data.message);
-            }
-        });
-
-        socket.on('opponentDisconnected', () => {
-            if(game) {
-                game.gameOver = true;
-                game.updateMessage('Your opponent has disconnected. You win!');
-                game.turnElement.textContent = "Game Over";
-                game.turnElement.className = "current-turn";
-            }
-        });
-
-        socket.on('error', (data) => {
-            console.error('Server error:', data.message);
-            if(game) {
-                game.updateMessage(`Error: ${data.message}`);
-            }
-        });
-
+        function undoMove() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
+        function redoMove() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
+        function newGame() { 
+            // Simply reload the page to start a new session
+            window.location.reload();
+        }
     </script>
 </body>
 </html>

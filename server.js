@@ -1,348 +1,217 @@
-// server.js
-
-// -----------------
-// 1. INITIALIZATION
-// -----------------
-const express = require('express');
 const http = require('http');
-const { Server } = require("socket.io");
-const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const path = require('path');
+const WebSocket = require('ws');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: "*", // Allow connections from any origin, useful for local testing
-    }
-});
-
-// Serve the static files (index.html, etc.) from the 'public' folder
-app.use(express.static('public'));
-
-// This object will hold all active game rooms, keyed by roomId
-const rooms = {};
-
-// ---------------------------------
-// 2. SERVER-SIDE GAME LOGIC ENGINE
-// (Adapted from your original frontend code, with all DOM manipulation removed)
-// ---------------------------------
+// --- Main Game Logic Class (Moved from client to server) ---
+// This is the authoritative game state manager.
 class Check10Game {
     constructor() {
         this.board = [];
         this.currentPlayer = 'white';
+        this.selectedPiece = null;
+        this.selectedPosition = null;
         this.whiteScore = 0;
         this.blackScore = 0;
         this.gameOver = false;
-        this.gameState = 'playing'; // 'playing', 'choosing_promotion'
+        this.gameState = 'playing'; // 'playing' or 'choosing_promotion'
         this.promotionChoices = null;
         this.promotionPoints = 0;
-        this.lastMoveInfo = null; // Store info about the last move for the client
+        this.gameHistory = [];
+        this.historyIndex = -1;
+        this.maxHistorySize = 50;
+        this.lastMessage = "White player starts!";
 
         this.initializeBoard();
-        this.checkGameEnd();
+        setTimeout(() => { this.checkGameEnd(); }, 100);
+        this.saveGameState();
     }
 
-    // --- State & Initialization ---
-    initializeBoard() {
-        this.board = Array(8).fill(null).map(() => Array(8).fill(null));
-        const blackRow1 = [8, 7, 6, 5, 4, 3, 2, 1];
-        const blackRow2 = [1, 2, 3, 4, 5, 6, 7, 8];
-        const whiteRow1 = [8, 7, 6, 5, 4, 3, 2, 1];
-        const whiteRow2 = [1, 2, 3, 4, 5, 6, 7, 8];
-        for (let col = 0; col < 8; col++) {
-            this.board[0][col] = { color: 'black', number: blackRow1[col], promoted: false };
-            this.board[1][col] = { color: 'black', number: blackRow2[col], promoted: false };
-            this.board[6][col] = { color: 'white', number: whiteRow1[col], promoted: false };
-            this.board[7][col] = { color: 'white', number: whiteRow2[col], promoted: false };
-        }
-    }
-
-    // Returns a snapshot of the current state, safe to send to clients
-    getState() {
-        return {
-            board: this.board,
-            currentPlayer: this.currentPlayer,
-            whiteScore: this.whiteScore,
-            blackScore: this.blackScore,
-            gameOver: this.gameOver,
-            gameState: this.gameState,
-            promotionChoices: this.promotionChoices,
-            lastMoveInfo: this.lastMoveInfo,
-        };
-    }
-
-    // --- Core Move Logic (Server is the single source of truth) ---
-    makeMove(fromRow, fromCol, toRow, toCol) {
-        if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) {
-            return { success: false, reason: "Invalid move." };
-        }
-
-        const piece = this.board[fromRow][fromCol];
-        this.board[toRow][toCol] = piece;
-        this.board[fromRow][fromCol] = null;
-        let pointsScored = 0;
-        let message = "";
-        let combinationsFound = [];
-
-        this.lastMoveInfo = { from: { row: fromRow, col: fromCol }, to: { row: toRow, col: toCol }};
-
-        // Check for promotion FIRST
-        if (this.checkPromotion(toRow, toCol)) {
-            const promotionResult = this.processPromotion(toRow, toCol);
-            
-            if (promotionResult.points > 0) {
-                pointsScored += promotionResult.points;
-                message += `Promoted and captured an opponent ${piece.number}! `;
-            } else if (promotionResult.choices) {
-                // The game must now wait for the player to make a choice
-                this.gameState = 'choosing_promotion';
-                this.promotionChoices = promotionResult.choices;
-                this.promotionPoints = piece.number;
-                return { success: true, state: this.getState() }; // Return early
-            }
-        }
-        
-        // Then, check for combinations
-        const combinations = this.checkCombinationsAroundPosition(toRow, toCol);
-        if (combinations.length > 0) {
-            pointsScored += this.processCombinations(combinations);
-            combinationsFound = combinations; // Store for client-side highlighting
-            message += `Formed a combination scoring ${pointsScored} points! `;
-        }
-        
-        this.lastMoveInfo.combinations = combinationsFound;
-
-        if (pointsScored > 0) {
-            if (this.currentPlayer === 'white') this.whiteScore += pointsScored;
-            else this.blackScore += pointsScored;
-        }
-
-        if (!message) {
-            message = `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} moved ${piece.number}.`;
-        }
-        this.lastMoveInfo.message = message;
-
-        // Switch player and check for game end
-        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-        this.checkGameEnd();
-        
-        return { success: true, state: this.getState() };
-    }
-    
-    handlePromotionChoice(row, col) {
-        if (this.gameState !== 'choosing_promotion') return { success: false, reason: "Not in promotion state." };
-
-        const choice = this.promotionChoices.find(p => p.row === row && p.col === col);
-        if (!choice) return { success: false, reason: "Invalid promotion choice." };
-        
-        // Remove the chosen piece
-        this.board[row][col] = null;
-        
-        const points = this.promotionPoints;
-        if (this.currentPlayer === 'white') this.whiteScore += points;
-        else this.blackScore += points;
-
-        // Reset promotion state
-        this.gameState = 'playing';
-        this.promotionChoices = null;
-        this.promotionPoints = 0;
-        
-        this.lastMoveInfo = {
-            message: `${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} chose a promotion target and scored ${points} points!`
-        };
-        
-        // Switch player and check for game end
-        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-        this.checkGameEnd();
-
-        return { success: true, state: this.getState() };
-    }
-
-    // --- Pure Logic Functions (no DOM) ---
-    isValidMove(fromRow, fromCol, toRow, toCol) {
-        const piece = this.board[fromRow][fromCol];
-        if (!piece || piece.color !== this.currentPlayer) return false;
-        if (toRow < 0 || toRow > 7 || toCol < 0 || toCol > 7) return false;
-        if (this.board[toRow][toCol]) return false;
-
-        const validMoves = this.getValidMoves(fromRow, fromCol);
-        return validMoves.some(move => move.row === toRow && move.col === toCol);
-    }
-    
-    getValidMoves(row, col) {
-        const validMoves = [];
-        const piece = this.board[row][col];
-        if (!piece) return validMoves;
-        const direction = piece.color === 'white' ? -1 : 1;
-        const newRow = row + direction;
-
-        if (newRow >= 0 && newRow < 8) {
-            // Forward move
-            if (!this.board[newRow][col]) {
-                validMoves.push({ row: newRow, col });
-            }
-            // Diagonal moves
-            for (const deltaCol of [-1, 1]) {
-                const newCol = col + deltaCol;
-                if (newCol >= 0 && newCol < 8 && !this.board[newRow][newCol]) {
-                    validMoves.push({ row: newRow, col: newCol });
-                }
-            }
-        }
-        return validMoves;
-    }
-    
-    checkPromotion(row, col) {
-        const piece = this.board[row][col];
-        if (!piece) return false;
-        if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) {
-            if (!piece.promoted) {
-                piece.promoted = true;
-                return true;
-            }
-        }
-        return false;
-    }
-
-    processPromotion(row, col) {
-        const piece = this.board[row][col];
-        const opponentColor = piece.color === 'white' ? 'black' : 'white';
-        const matchingPieces = [];
-        for (let r = 0; r < 8; r++) {
-            for (let c = 0; c < 8; c++) {
-                const targetPiece = this.board[r][c];
-                if (targetPiece && targetPiece.color === opponentColor && targetPiece.number === piece.number && !targetPiece.promoted) {
-                    matchingPieces.push({ row: r, col: c });
-                }
-            }
-        }
-        if (matchingPieces.length === 0) return { points: 0 };
-        if (matchingPieces.length === 1) {
-            this.board[matchingPieces[0].row][matchingPieces[0].col] = null;
-            return { points: piece.number };
-        } else {
-            return { choices: matchingPieces };
-        }
-    }
-    
-    checkCombinationsAroundPosition(centerRow, centerCol) { /* ... same as your frontend ... */ return []; }
-    processCombinations(combinations) { /* ... same as your frontend ... */ return 0; }
-    // NOTE: You would need to copy your `checkCombinationsAroundPosition`, `findValidCombinations`, `areConnectedOptimized`, and `processCombinations` logic here.
-    // For brevity in this example, they are stubbed out.
-
-    checkGameEnd() {
-        if (!this.hasValidMoves(this.currentPlayer)) {
-            this.gameOver = true;
-            // Final scoring would happen here
-        }
-    }
-    
-    hasValidMoves(player) {
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                if (this.board[row][col] && this.board[row][col].color === player) {
-                    if (this.getValidMoves(row, col).length > 0) return true;
-                }
-            }
-        }
-        return false;
-    }
+    // All the game logic methods from the original file are kept here.
+    // They no longer interact with the DOM, but purely manipulate the state object.
+    // (DOM-related methods like renderBoard, highlight... are still here but not used on the server)
+    initializeBoard(){this.board=Array(8).fill(null).map(()=>Array(8).fill(null));const t=[8,7,6,5,4,3,2,1],e=[1,2,3,4,5,6,7,8],o=[8,7,6,5,4,3,2,1],s=[1,2,3,4,5,6,7,8];for(let r=0;r<8;r++)this.board[0][r]={color:"black",number:t[r],promoted:!1},this.board[1][r]={color:"black",number:e[r],promoted:!1},this.board[6][r]={color:"white",number:o[r],promoted:!1},this.board[7][r]={color:"white",number:s[r],promoted:!1}}
+    getValidMoves(t,e){const o=[];const s=this.board[t][e];if(!s)return o;const r=s.color==="white"?-1:1,i=t+r;i>=0&&i<8&&!this.board[i][e]&&o.push({row:i,col:e});for(const a of[-1,1]){const n=e+a;i>=0&&i<8&&n>=0&&n<8&&!this.board[i][n]&&o.push({row:i,col:n})}return o}
+    makeMove(t,e,o,s){if(!this.isValidMove(t,e,o,s))return!1;const r=this.board[t][e];this.board[o][s]=r,this.board[t][e]=null;let i=0;if(this.checkPromotion(o,s)){const a=this.processPromotion(o,s);if(a>0)i+=a;else if(this.gameState==="choosing_promotion")return!0}const n=this.checkCombinationsAroundPosition(o,s);n.length>0&&(i+=this.processCombinations(n)),i>0?(this.currentPlayer==="white"?this.whiteScore+=i:this.blackScore+=i,this.lastMessage=`${this.currentPlayer} scored ${i} points!`):(this.lastMessage=`${this.currentPlayer} moved ${r.number}.`),this.currentPlayer=this.currentPlayer==="white"?"black":"white",this.checkGameEnd(),this.saveGameState();return!0}
+    isValidMove(t,e,o,s){const r=this.board[t][e];return!(!r||r.color!==this.currentPlayer)&&!this.board[o][s]&&this.getValidMoves(t,e).some(r=>r.row===o&&r.col===s)}
+    checkPromotion(t,e){const o=this.board[t][e];return!!o&&(o.color==="white"&&t===0||o.color==="black"&&t===7)&&(o.promoted=!0,!0)}
+    processPromotion(t,e){const o=this.board[t][e],s=o.color==="white"?"black":"white",r=[];for(let i=0;i<8;i++)for(let a=0;a<8;a++){const n=this.board[i][a];n&&n.color===s&&n.number===o.number&&!n.promoted&&r.push({row:i,col:a,piece:n})}return r.length===0?0:r.length===1?(this.board[r[0].row][r[0].col]=null,o.number):(this.showPromotionChoice(r,o.number),0)}
+    showPromotionChoice(t,e){this.gameState="choosing_promotion",this.promotionChoices=t,this.promotionPoints=e,this.lastMessage=`Promotion! Choose which opponent ${e} to remove.`}
+    handlePromotionChoice(t,e){if(this.gameState!=="choosing_promotion")return!1;const o=this.promotionChoices.find(o=>o.row===t&&o.col===e);if(!o)return this.lastMessage=`Please click on one of the highlighted pieces.`,!1;this.board[t][e]=null;const s=this.promotionPoints;return this.currentPlayer==="white"?this.whiteScore+=s:this.blackScore+=s,this.gameState="playing",this.promotionChoices=null,this.promotionPoints=0,this.lastMessage=`${this.currentPlayer} promoted and scored ${s} points!`,this.currentPlayer=this.currentPlayer==="white"?"black":"white",this.checkGameEnd(),this.saveGameState(),!0}
+    checkCombinationsAroundPosition(t,e){const o=[],s=3;for(let r=Math.max(0,t-s);r<=Math.min(7,t+s);r++)for(let i=Math.max(0,e-s);i<=Math.min(7,e+s);i++)this.board[r][i]&&o.push({row:r,col:i,piece:this.board[r][i]});return this.findValidCombinations(o)}
+    findValidCombinations(t){const e=[];const o=t.length;for(let s=3;s<1<<o;s++){const r=[];let i=0,a=!1,n=!1;for(let l=0;l<o;l++)if(s&1<<l){const c=t[l];r.push(c),i+=c.piece.number,c.piece.color==="white"?a=!0:n=!0}i===10&&a&&n&&r.length<=8&&this.areConnectedOptimized(r)&&e.push(r)}return e}
+    areConnectedOptimized(t){if(t.length<=1)return!0;const e=new Set(t.map(t=>`${t.row},${t.col}`)),o=new Set,s=[t[0]];o.add(`${t[0].row},${t[0].col}`);const r=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];for(;s.length>0;){const i=s.shift();for(const[a,n]of r){const l=i.row+a,c=i.col+n,h=`${l},${c}`;e.has(h)&&!o.has(h)&&(o.add(h),s.push({row:l,col:c}))}}return o.size===t.length}
+    processCombinations(t){let e=0;const o=new Set;for(const s of t)for(const r of s)r.piece.color!==this.currentPlayer&&!r.piece.promoted&&o.add(`${r.row},${r.col}`);for(const i of o){const[a,n]=i.split(",").map(Number);this.board[a][n]&&(e+=this.board[a][n].number,this.board[a][n]=null)}return e}
+    calculatePromotedPieceValues(){let t=0,e=0;for(let o=0;o<8;o++)for(let s=0;s<8;s++){const r=this.board[o][s];r&&r.promoted&&(r.color==="white"?t+=r.number:e+=r.number)}return{whitePromotedValue:t,blackPromotedValue:e}}
+    hasValidMoves(t){for(let e=0;e<8;e++)for(let o=0;o<8;o++)if(this.board[e][o]&&this.board[e][o].color===t&&this.getValidMoves(e,o).length>0)return!0;return!1}
+    checkGameEnd(){if(!this.hasValidMoves(this.currentPlayer)){this.gameOver=!0;const t=this.calculatePromotedPieceValues(),e=this.whiteScore+t.whitePromotedValue,o=this.blackScore+t.blackPromotedValue,s=e>o?"White":o>e?"Black":"Tie";s==="Tie"?this.lastMessage=`Game Over! It's a tie! Both scored ${e}.`:(this.lastMessage=`Game Over! ${s} wins ${e} to ${o}.`),this.whiteScore=e,this.blackScore=o;return!0}return!1}
+    saveGameState(){const t={board:this.board.map(t=>t.map(t=>t?{...t}:null)),currentPlayer:this.currentPlayer,whiteScore:this.whiteScore,blackScore:this.blackScore,gameOver:this.gameOver,gameState:this.gameState,promotionChoices:this.promotionChoices,lastMessage:this.lastMessage};this.gameHistory=this.gameHistory.slice(0,this.historyIndex+1),this.gameHistory.push(t),this.historyIndex++,this.gameHistory.length>this.maxHistorySize&&(this.gameHistory.shift(),this.historyIndex--)}
+    restoreGameState(t){this.board=t.board.map(t=>t.map(t=>t?{...t}:null)),this.currentPlayer=t.currentPlayer,this.whiteScore=t.whiteScore,this.blackScore=t.blackScore,this.gameOver=t.gameOver,this.gameState="playing",this.promotionChoices=null,this.promotionPoints=0,this.lastMessage=t.lastMessage}
+    canUndo(){return this.historyIndex>0}
+    canRedo(){return this.historyIndex<this.gameHistory.length-1}
+    undo(){this.canUndo()&&(this.historyIndex--,this.restoreGameState(this.gameHistory[this.historyIndex]),this.lastMessage="Move undone.")}
+    redo(){this.canRedo()&&(this.historyIndex++,this.restoreGameState(this.gameHistory[this.historyIndex]),this.lastMessage="Move redone.")}
 }
 
 
-// ---------------------------------
-// 3. SOCKET.IO EVENT HANDLING
-// ---------------------------------
-io.on('connection', (socket) => {
-    console.log(`Player connected: ${socket.id}`);
-
-    // --- Handle Player Joining ---
-    let availableRoomId = Object.keys(rooms).find(id => rooms[id] && rooms[id].players.length === 1);
-
-    if (availableRoomId) {
-        const room = rooms[availableRoomId];
-        room.players.push({ id: socket.id, color: 'black' });
-        socket.join(availableRoomId);
-        
-        console.log(`Player ${socket.id} joined room ${availableRoomId} as Black.`);
-        
-        // Both players are now in the room, start the game.
-        io.to(availableRoomId).emit('gameStart', { 
-            roomId: availableRoomId,
-            players: room.players,
-            initialState: room.game.getState()
+// --- HTTP Server to serve the index.html file ---
+const server = http.createServer((req, res) => {
+    if (req.url === '/') {
+        fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => {
+            if (err) {
+                res.writeHead(500);
+                res.end('Error loading index.html');
+                return;
+            }
+            res.writeHead(200);
+            res.end(data);
         });
-    } else {
-        const newRoomId = uuidv4();
-        socket.join(newRoomId);
-        rooms[newRoomId] = {
-            id: newRoomId,
-            players: [{ id: socket.id, color: 'white' }],
-            game: new Check10Game() // A new game instance for this room
+    }
+});
+
+// --- WebSocket Server Logic ---
+const wss = new WebSocket.Server({ server });
+
+let rooms = {};
+let waitingPlayer = null;
+let nextRoomId = 1;
+
+wss.on('connection', ws => {
+    console.log('Client connected');
+    let playerColor;
+    let roomId;
+
+    if (waitingPlayer) {
+        // --- Start a new game ---
+        roomId = waitingPlayer.roomId;
+        const room = rooms[roomId];
+        room.playerBlack = ws;
+        
+        playerColor = 'black';
+        ws.playerColor = 'black';
+        ws.roomId = roomId;
+
+        console.log(`Player Black joined room ${roomId}. Starting game.`);
+        
+        waitingPlayer = null;
+
+        // Notify both players that the game is starting
+        const initialGameState = room.game.gameHistory[room.game.historyIndex];
+        
+        const payload = {
+            type: 'gameStart',
+            playerColor: 'white',
+            gameState: initialGameState
         };
-        console.log(`Player ${socket.id} created room ${newRoomId} as White.`);
-        socket.emit('waitingForOpponent', { roomId: newRoomId });
+        room.playerWhite.send(JSON.stringify(payload));
+
+        payload.playerColor = 'black';
+        room.playerBlack.send(JSON.stringify(payload));
+        
+    } else {
+        // --- This is the first player, must wait ---
+        roomId = nextRoomId++;
+        playerColor = 'white';
+        ws.playerColor = 'white';
+        ws.roomId = roomId;
+        
+        const game = new Check10Game();
+        rooms[roomId] = {
+            game: game,
+            playerWhite: ws,
+            playerBlack: null
+        };
+        
+        waitingPlayer = ws;
+        console.log(`Player White created room ${roomId}. Waiting for opponent.`);
+
+        // Notify the player they need to wait
+        ws.send(JSON.stringify({ type: 'waiting' }));
     }
 
-    // --- Handle Player Moves ---
-    socket.on('makeMove', (data) => {
-        const { roomId, from, to } = data;
-        const room = rooms[roomId];
+    ws.on('message', message => {
+        const data = JSON.parse(message);
+        const room = rooms[ws.roomId];
         if (!room) return;
+        const game = room.game;
 
-        const player = room.players.find(p => p.id === socket.id);
-        if (!player || player.color !== room.game.currentPlayer) {
-            socket.emit('error', { message: "Not your turn or not in this game." });
+        // Ignore moves from the wrong player
+        if (data.type !== 'newGameRequest' && game.currentPlayer !== ws.playerColor) {
+            console.log(`Invalid turn attempt by ${ws.playerColor}`);
             return;
         }
 
-        const result = room.game.makeMove(from.row, from.col, to.row, to.col);
-        
-        if (result.success) {
-            // Broadcast the new state to everyone in the room.
-            io.to(roomId).emit('gameStateUpdate', result.state);
-        } else {
-            // Send an error back to the player who made the invalid move.
-            socket.emit('invalidMove', { message: result.reason });
+        switch (data.type) {
+            case 'move':
+                game.makeMove(data.from.row, data.from.col, data.to.row, data.to.col);
+                break;
+
+            case 'promotionChoice':
+                game.handlePromotionChoice(data.pos.row, data.pos.col);
+                break;
+                
+            case 'undoRequest':
+                game.undo();
+                break;
+            
+            case 'redoRequest':
+                game.redo();
+                break;
+
+            case 'newGameRequest':
+                 // For simplicity, new game will just disconnect players. They can refresh to rejoin.
+                 // A more robust solution would re-initialize the game in the room.
+                 console.log(`New Game requested in room ${ws.roomId}. Disconnecting players.`);
+                 if(room.playerWhite) room.playerWhite.close();
+                 if(room.playerBlack) room.playerBlack.close();
+                 return;
         }
+
+        // After any action, broadcast the new state to both players
+        broadcastGameState(ws.roomId);
     });
-    
-    // --- Handle Promotion Choices ---
-    socket.on('promotionChoice', (data) => {
-        const { roomId, choice } = data;
+
+    ws.on('close', () => {
+        console.log(`Client ${playerColor} from room ${roomId} disconnected.`);
         const room = rooms[roomId];
-        if (!room) return;
-        
-        const player = room.players.find(p => p.id === socket.id);
-        if (!player || player.color !== room.game.currentPlayer) return;
-
-        const result = room.game.handlePromotionChoice(choice.row, choice.col);
-        if(result.success) {
-            io.to(roomId).emit('gameStateUpdate', result.state);
-        } else {
-            socket.emit('invalidMove', { message: result.reason });
-        }
-    });
-
-    // --- Handle Disconnections ---
-    socket.on('disconnect', () => {
-        console.log(`Player disconnected: ${socket.id}`);
-        // Find which room the player was in and notify the opponent.
-        const roomId = Object.keys(rooms).find(id => rooms[id].players.some(p => p.id === socket.id));
-        if (roomId) {
-            io.to(roomId).emit('opponentDisconnected');
-            // Clean up the room from memory
+        if (room) {
+            const otherPlayer = ws.playerColor === 'white' ? room.playerBlack : room.playerWhite;
+            if (otherPlayer && otherPlayer.readyState === WebSocket.OPEN) {
+                otherPlayer.send(JSON.stringify({ type: 'opponentDisconnect' }));
+            }
             delete rooms[roomId];
-            console.log(`Room ${roomId} closed.`);
+            if (waitingPlayer && waitingPlayer.roomId === roomId) {
+                waitingPlayer = null;
+            }
         }
     });
 });
 
+function broadcastGameState(roomId) {
+    const room = rooms[roomId];
+    if (!room || !room.game) return;
 
-// -----------------
-// 4. START SERVER
-// -----------------
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    const game = room.game;
+    const gameState = {
+        ...game.gameHistory[game.historyIndex],
+        canUndo: game.canUndo(),
+        canRedo: game.canRedo()
+    };
+    
+    const payload = JSON.stringify({
+        type: 'gameStateUpdate',
+        gameState: gameState
+    });
+
+    if (room.playerWhite && room.playerWhite.readyState === WebSocket.OPEN) {
+        room.playerWhite.send(payload);
+    }
+    if (room.playerBlack && room.playerBlack.readyState === WebSocket.OPEN) {
+        room.playerBlack.send(payload);
+    }
+}
+
+
+server.listen(8080, () => {
+    console.log('WebSocket server started on port 8080');
 });
