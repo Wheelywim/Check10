@@ -53,12 +53,8 @@
         .score-item { text-align: center; }
         .score-label { font-weight: bold; margin-bottom: 5px; color: #654321; }
         .score-value { font-size: 1.5em; font-weight: bold; color: #2E2822; }
-
-        /* --- New styles for flipped board --- */
         .board-wrapper.flipped { transform: rotate(180deg); }
-        .board-wrapper.flipped .piece,
-        .board-wrapper.flipped .coordinate-label { transform: rotate(180deg); }
-        
+        .board-wrapper.flipped .piece, .board-wrapper.flipped .coordinate-label { transform: rotate(180deg); }
         @media (max-width: 950px) { .main-content { flex-direction: column; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
         @media (max-width: 600px) { .game-container { padding: 15px; } .board-wrapper { padding: 10px; } .square { width: 40px; height: 40px; } .piece { width: 30px; height: 30px; font-size: 14px; } .rank-labels { left: 2px; top: 10px; height: 320px; } .file-labels { bottom: 2px; left: 10px; width: 320px; } .rank-labels .coordinate-label { height: 40px; } .file-labels .coordinate-label { width: 40px; } .coordinate-label { font-size: 10px; } .controls { gap: 8px; } .btn { padding: 10px 16px; font-size: 14px; } }
     </style>
@@ -66,16 +62,11 @@
 <body>
     <div id="waitingScreen"><div class="spinner"></div><p>Waiting for an opponent...</p></div>
     <div class="game-container" style="display: none;">
-        <div class="game-header">
-            <h1 class="game-title">CHECK 10</h1>
-            <p class="game-subtitle" id="playerInfo">Strategic Board Game (Online)</p>
-        </div>
+        <div class="game-header"> <h1 class="game-title">CHECK 10</h1> <p class="game-subtitle" id="playerInfo">Strategic Board Game (Online)</p> </div>
         <div class="main-content">
             <div class="board-container">
                 <div class="board-wrapper" id="boardWrapper">
-                    <div class="rank-labels" id="rankLabels"></div>
-                    <div class="file-labels" id="fileLabels"></div>
-                    <div class="board" id="gameBoard"></div>
+                    <div class="rank-labels" id="rankLabels"></div> <div class="file-labels" id="fileLabels"></div> <div class="board" id="gameBoard"></div>
                 </div>
             </div>
             <div class="info-panel">
@@ -93,210 +84,77 @@
             </div>
         </div>
     </div>
-
     <script>
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${protocol}//${window.location.host}`);
-        
-        let myColor = null;
-        let currentGameState = {};
-        let previousGameState = null; // Store the last state for animations
-        let selectedPosition = null;
-        let isAnimating = false;
-
-        const boardElement = document.getElementById('gameBoard');
-        const boardWrapper = document.getElementById('boardWrapper');
-        const messageElement = document.getElementById('gameMessage');
-        const turnElement = document.getElementById('currentTurn');
-        const whiteScoreElement = document.getElementById('whiteScore');
-        const blackScoreElement = document.getElementById('blackScore');
-        const undoBtn = document.getElementById('undoBtn');
-        const redoBtn = document.getElementById('redoBtn');
-
+        let myColor = null; let currentGameState = {}; let previousGameState = null; let selectedPosition = null; let isAnimating = false;
+        const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
         socket.onmessage = async (event) => {
-            if (isAnimating) return;
             const data = JSON.parse(event.data);
-
             switch (data.type) {
-                case 'waiting':
-                    document.getElementById('waitingScreen').style.display = 'flex';
-                    document.querySelector('.game-container').style.display = 'none';
-                    break;
-                case 'gameStart':
-                    myColor = data.playerColor;
-                    document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`;
-                    document.getElementById('waitingScreen').style.display = 'none';
-                    document.querySelector('.game-container').style.display = 'block';
-                    currentGameState = data.gameState;
-                    await renderGame(currentGameState);
-                    break;
+                case 'waiting': document.getElementById('waitingScreen').style.display = 'flex'; document.querySelector('.game-container').style.display = 'none'; break;
+                case 'gameStart': myColor = data.playerColor; document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`; document.getElementById('waitingScreen').style.display = 'none'; document.querySelector('.game-container').style.display = 'block'; currentGameState = data.gameState; await renderGame(currentGameState); break;
                 case 'gameStateUpdate':
-                    // If a move was made, animate it
-                    if (data.lastMove && previousGameState) {
-                        isAnimating = true;
-                        await renderGame(previousGameState, false); // Render 'before' state without UI updates
-                        await animateMove(data.lastMove.from, data.lastMove.to);
-                        isAnimating = false;
-                    }
-                    currentGameState = data.gameState;
-                    await renderGame(currentGameState); // Render the final 'after' state
-                    break;
-                case 'opponentDisconnect':
-                    messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again.";
-                    turnElement.textContent = "Game Over";
-                    turnElement.className = "current-turn";
-                    boardElement.style.pointerEvents = 'none';
-                    break;
+                    if (isAnimating) { setTimeout(() => socket.onmessage(event), 100); return; }
+                    if (data.lastMove && previousGameState) { isAnimating = true; await renderGame(previousGameState, false); await animateMove(data.lastMove.from, data.lastMove.to); isAnimating = false; }
+                    currentGameState = data.gameState; await renderGame(currentGameState); break;
+                case 'opponentDisconnect': messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; break;
             }
-            previousGameState = { ...currentGameState, board: currentGameState.board.map(row => [...row]) };
+            previousGameState = JSON.parse(JSON.stringify(currentGameState));
         };
-
-        function renderCoordinates(isFlipped) {
-            const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1'];
-            const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-            document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join('');
-            document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join('');
-        }
-        
+        function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
         function renderGame(state, updateUI = true) {
             return new Promise(resolve => {
-                const isFlipped = myColor === 'black';
-                boardWrapper.classList.toggle('flipped', isFlipped);
-                renderCoordinates(isFlipped);
-                
+                const isFlipped = myColor === 'black'; boardWrapper.classList.toggle('flipped', isFlipped); renderCoordinates(isFlipped);
                 const fragment = document.createDocumentFragment();
-                for (let row = 0; row < 8; row++) {
-                    for (let col = 0; col < 8; col++) {
-                        const square = document.createElement('div');
-                        const isLightSquare = (row + col) % 2 === 0;
-                        square.className = `square ${isLightSquare ? 'light' : 'dark'}`;
-                        square.dataset.row = row;
-                        square.dataset.col = col;
-                        
-                        const piece = state.board[row][col];
-                        if (piece) {
-                            const pieceElement = document.createElement('div');
-                            pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`;
-                            if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) {
-                                pieceElement.classList.add('selected');
-                            }
-                            pieceElement.textContent = piece.number;
-                            square.appendChild(pieceElement);
-                        }
-                        if (state.gameState === 'choosing_promotion' && state.promotionChoices.some(p => p.row === row && p.col === col)) {
-                            square.classList.add('promotion-choice');
-                        }
-                        fragment.appendChild(square);
-                    }
-                }
-                boardElement.innerHTML = '';
-                boardElement.appendChild(fragment);
-
+                for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div'); const isLightSquare = (row + col) % 2 === 0; square.className = `square ${isLightSquare ? 'light' : 'dark'}`; square.dataset.row = row; square.dataset.col = col;
+                    const piece = state.board[row][col];
+                    if (piece) { const pieceElement = document.createElement('div'); pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`; if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) { pieceElement.classList.add('selected'); } pieceElement.textContent = piece.number; square.appendChild(pieceElement); }
+                    if (state.gameState === 'choosing_promotion' && state.promotionChoices?.some(p => p.row === row && p.col === col)) { square.classList.add('promotion-choice'); }
+                    fragment.appendChild(square);
+                }}
+                boardElement.innerHTML = ''; boardElement.appendChild(fragment);
                 if (updateUI) {
-                    whiteScoreElement.textContent = state.whiteScore;
-                    blackScoreElement.textContent = state.blackScore;
-                    messageElement.textContent = state.lastMessage;
-
-                    if(state.gameOver) {
-                        turnElement.textContent = "Game Over";
-                        turnElement.className = "current-turn";
-                        boardElement.style.pointerEvents = 'none';
-                    } else {
-                        turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
-                        turnElement.className = `current-turn ${state.currentPlayer}-turn`;
-                        boardElement.style.pointerEvents = (state.gameState === 'choosing_promotion' || state.currentPlayer === myColor) ? 'auto' : 'none';
-                    }
-                    undoBtn.disabled = !state.canUndo;
-                    redoBtn.disabled = !state.canRedo;
+                    whiteScoreElement.textContent = state.whiteScore; blackScoreElement.textContent = state.blackScore; messageElement.textContent = state.lastMessage;
+                    if (state.gameOver) { turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; } else { turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`; turnElement.className = `current-turn ${state.currentPlayer}-turn`; boardElement.style.pointerEvents = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor || state.currentPlayer === myColor) ? 'auto' : 'none'; }
+                    undoBtn.disabled = !state.canUndo; redoBtn.disabled = !state.canRedo;
                 }
                 requestAnimationFrame(() => resolve());
             });
         }
-        
         function animateMove(from, to) {
             return new Promise(resolve => {
-                // Case 1: A piece is moving from one square to another
                 if (from && to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
-                    const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`);
-                    const pieceEl = fromSquare?.querySelector('.piece');
-
+                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
                     if (!pieceEl || !toSquare) return resolve();
-                    
-                    const fromRect = fromSquare.getBoundingClientRect();
-                    const toRect = toSquare.getBoundingClientRect();
-                    const deltaX = toRect.left - fromRect.left;
-                    const deltaY = toRect.top - fromRect.top;
-
-                    pieceEl.style.zIndex = '1000';
-                    pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-                    
-                    pieceEl.addEventListener('transitionend', () => {
-                        pieceEl.style.zIndex = '';
-                        pieceEl.style.transform = '';
-                        resolve();
-                    }, { once: true });
-                } 
-                // Case 2: A piece is being removed (e.g., promotion capture)
-                else if(from && !to) {
-                     const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
-                     const pieceEl = fromSquare?.querySelector('.piece');
-                     if (!pieceEl) return resolve();
-
-                     pieceEl.style.transform = 'scale(0)';
-                     pieceEl.style.opacity = '0';
-                     pieceEl.addEventListener('transitionend', () => resolve(), { once: true });
-                } else {
-                    // No animation needed
-                    resolve();
-                }
+                    const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect();
+                    let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top;
+                    // *** THIS IS THE ANIMATION FIX ***
+                    if (myColor === 'black') { deltaX = -deltaX; deltaY = -deltaY; }
+                    pieceEl.style.zIndex = '1000'; pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                    pieceEl.addEventListener('transitionend', () => { pieceEl.style.zIndex = ''; pieceEl.style.transform = ''; resolve(); }, { once: true });
+                } else if (from && !to) {
+                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
+                    if (!pieceEl) return resolve();
+                    pieceEl.style.transform = 'scale(0)'; pieceEl.style.opacity = '0';
+                    pieceEl.addEventListener('transitionend', () => resolve(), { once: true });
+                } else { resolve(); }
             });
         }
-
-        function highlightValidMoves(moves) {
-            document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move'));
-            moves.forEach(move => {
-                const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`);
-                if (square) square.classList.add('valid-move');
-            });
-        }
-
+        function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
         boardElement.addEventListener('click', (e) => {
-            const target = e.target.closest('.square');
-            if (!target || isAnimating || !currentGameState.board) return;
-
-            const row = parseInt(target.dataset.row);
-            const col = parseInt(target.dataset.col);
-            const piece = currentGameState.board[row][col];
-
-            // Handle promotion choice
-            if (currentGameState.gameState === 'choosing_promotion' && currentGameState.promotionChoices.some(p => p.row === row && p.col === col)) {
-                 socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } }));
-                 return;
-            }
-
-            // Only allow actions if it's our turn
+            const target = e.target.closest('.square'); if (!target || isAnimating || !currentGameState.board) return;
+            const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col); const piece = currentGameState.board[row][col];
+            if (currentGameState.gameState === 'choosing_promotion' && currentGameState.currentPlayer === myColor) { socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } })); return; }
             if (currentGameState.currentPlayer !== myColor) return;
-
             if (piece && piece.color === myColor) {
-                selectedPosition = { row, col };
-                const direction = piece.color === 'white' ? -1 : 1, validMoves = [];
-                const newRow = row + direction;
+                selectedPosition = { row, col }; const direction = piece.color === 'white' ? -1 : 1, validMoves = []; const newRow = row + direction;
                 if (newRow >= 0 && newRow < 8 && !currentGameState.board[newRow][col]) validMoves.push({ row: newRow, col });
-                for (const dC of [-1, 1]) {
-                    const newCol = col + dC;
-                    if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol });
-                }
-                renderGame(currentGameState); // Re-render to show selection
-                highlightValidMoves(validMoves);
-            } 
-            else if (selectedPosition) {
-                socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } }));
-                selectedPosition = null;
-                highlightValidMoves([]);
-            }
+                for (const dC of [-1, 1]) { const newCol = col + dC; if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol }); }
+                renderGame(currentGameState); highlightValidMoves(validMoves);
+            } else if (selectedPosition) { socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]); }
         });
-
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
         function newGame() { window.location.reload(); }
