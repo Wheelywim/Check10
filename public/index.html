@@ -92,11 +92,16 @@
 
         const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
 
-        socket.onmessage = (event) => { messageQueue.push(JSON.parse(event.data)); processMessageQueue(); };
+        socket.onmessage = (event) => {
+            messageQueue.push(JSON.parse(event.data));
+            processMessageQueue();
+        };
 
         async function processMessageQueue() {
             if (isAnimating || messageQueue.length === 0) return;
+
             const data = messageQueue.shift();
+            
             switch (data.type) {
                 case 'waiting': document.getElementById('waitingScreen').style.display = 'flex'; document.querySelector('.game-container').style.display = 'none'; break;
                 case 'gameStart': myColor = data.playerColor; document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`; document.getElementById('waitingScreen').style.display = 'none'; document.querySelector('.game-container').style.display = 'block'; currentGameState = data.gameState; await renderGame(currentGameState); break;
@@ -109,7 +114,9 @@
                 case 'opponentDisconnect': messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; break;
             }
             previousGameState = JSON.parse(JSON.stringify(currentGameState));
-            if (messageQueue.length > 0) { requestAnimationFrame(processMessageQueue); }
+            if (messageQueue.length > 0) {
+                requestAnimationFrame(processMessageQueue);
+            }
         }
 
         function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
@@ -133,63 +140,40 @@
                 requestAnimationFrame(() => resolve());
             });
         }
-        
         function animateMove(from, to) {
             return new Promise(resolve => {
                 if (from && to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
-                    const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`);
-                    const pieceEl = fromSquare?.querySelector('.piece');
+                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
                     if (!pieceEl || !toSquare) return resolve();
+                    const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect();
+                    let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top;
                     
-                    const fromRect = fromSquare.getBoundingClientRect();
-                    const toRect = toSquare.getBoundingClientRect();
-                    
-                    // The browser's getBoundingClientRect() provides the correct visual delta,
-                    // regardless of the board's rotation. We do not need to manually negate it.
-                    const deltaX = toRect.left - fromRect.left;
-                    const deltaY = toRect.top - fromRect.top;
-
+                    // *** FINAL ANIMATION FIX IS HERE ***
                     const isFlipped = myColor === 'black';
+                    if (isFlipped) { deltaX = -deltaX; deltaY = -deltaY; }
+
                     let transformString = `translate(${deltaX}px, ${deltaY}px)`;
-                    
-                    // If the board is flipped, we must add rotate(180deg) to the transform
-                    // to keep the piece from flipping upside down during the animation.
-                    if (isFlipped) {
-                        transformString += ' rotate(180deg)';
-                    }
-                    
+                    if (isFlipped) { transformString += ' rotate(180deg)'; }
+
                     pieceEl.style.zIndex = '1000';
                     pieceEl.style.transform = transformString;
                     
-                    pieceEl.addEventListener('transitionend', () => {
-                        pieceEl.style.zIndex = '';
-                        // Reset the inline style so the CSS class rule takes over again.
-                        pieceEl.style.transform = '';
-                        resolve();
-                    }, { once: true });
-
+                    pieceEl.addEventListener('transitionend', () => { pieceEl.style.zIndex = ''; pieceEl.style.transform = ''; resolve(); }, { once: true });
                 } else if (from && !to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
-                    const pieceEl = fromSquare?.querySelector('.piece');
+                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
                     if (!pieceEl) return resolve();
-                    pieceEl.style.transform = 'scale(0)';
-                    pieceEl.style.opacity = '0';
+                    pieceEl.style.transform = 'scale(0)'; pieceEl.style.opacity = '0';
                     pieceEl.addEventListener('transitionend', () => resolve(), { once: true });
-                } else {
-                    resolve();
-                }
+                } else { resolve(); }
             });
         }
-
         function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
-        
         boardElement.addEventListener('click', (e) => {
             if (isAnimating) return;
             const target = e.target.closest('.square'); if (!target || !currentGameState.board) return;
             const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col);
-            const isMyTurn = (currentGameState.gameState === 'choosing_promotion' && currentGameState.currentPlayer === myColor) || (currentGameState.gameState !== 'choosing_promotion' && currentGameState.currentPlayer === myColor);
-            if (!isMyTurn) return;
+            const myTurn = (currentGameState.gameState === 'choosing_promotion' && currentGameState.currentPlayer === myColor) || (currentGameState.gameState !== 'choosing_promotion' && currentGameState.currentPlayer === myColor);
+            if (!myTurn) return;
 
             if (currentGameState.gameState === 'choosing_promotion') {
                 socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } }));
@@ -199,13 +183,12 @@
             if (piece && piece.color === myColor) {
                 selectedPosition = { row, col }; const direction = piece.color === 'white' ? -1 : 1, validMoves = []; const newRow = row + direction;
                 if (newRow >= 0 && newRow < 8 && !currentGameState.board[newRow][col]) validMoves.push({ row: newRow, col });
-                for (const dC of [-1, 1]) { const newCol = col + dC; if (newRow >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol }); }
+                for (const dC of [-1, 1]) { const newCol = col + dC; if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol }); }
                 renderGame(currentGameState); highlightValidMoves(validMoves);
             } else if (selectedPosition) {
                 socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]);
             }
         });
-        
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
         function newGame() { window.location.reload(); }
