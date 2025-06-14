@@ -53,7 +53,7 @@ class Check10Game {
 const server = http.createServer((req, res) => {
     // This is the line to change if your index.html is in a 'public' folder
     // e.g., path.join(__dirname, 'public', 'index.html')
-    fs.readFile(path.join(__dirname, 'index.html'), (err, data) => {
+    fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => {
         if (err) {
             res.writeHead(500);
             res.end('Error loading index.html');
