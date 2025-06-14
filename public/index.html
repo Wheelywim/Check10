@@ -30,33 +30,20 @@
         .square { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; position: relative; }
         .square.light { background: #F0D9B5; } .square.dark { background: #B58863; }
         .square.valid-move { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 0.8); }
-        .square.combination { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 1); animation: pulse 1s infinite; }
         .square.promotion-choice { box-shadow: inset 0 0 0 4px rgba(255, 140, 0, 0.9); animation: promotionPulse 1s infinite; }
-        @keyframes pulse { 0%, 100% { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 0.9); } 50% { box-shadow: inset 0 0 0 7px rgba(218, 165, 32, 1); } }
         @keyframes promotionPulse { 0%, 100% { box-shadow: inset 0 0 0 4px rgba(255, 140, 0, 0.9); } 50% { box-shadow: inset 0 0 0 7px rgba(255, 140, 0, 1); } }
         .piece { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); transition: transform 0.4s ease-in-out, opacity 0.3s ease; position: relative; }
-        .piece:hover { transform: scale(1.1); }
-        .piece.white { background: radial-gradient(circle, #ffffff 0%, #e0e0e0 100%); color: #333; border: 2px solid #ccc; }
-        .piece.black { background: radial-gradient(circle, #333 0%, #000 100%); color: white; border: 2px solid #555; }
-        .piece.promoted { border: 3px solid gold; box-shadow: 0 0 15px rgba(255, 215, 0, 0.6); }
         .piece.selected { transform: scale(1.2); box-shadow: 0 0 20px rgba(218, 165, 32, 0.8); }
         .info-panel { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 250px; }
         .message { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; }
-        .message.info { background: rgba(139, 69, 19, 0.1); color: #654321; border: 1px solid #D2B48C; }
         .controls { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
         .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); }
         .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2); }
         .btn-primary { background: #8B4513; color: white; }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; background: #9E9E9E !important; }
-        .btn:disabled:hover { transform: none; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); }
-        .score-display { display: flex; justify-content: space-around; margin-bottom: 15px; padding: 15px; background: rgba(255, 255, 255, 0.5); border-radius: 8px; }
-        .score-item { text-align: center; }
-        .score-label { font-weight: bold; margin-bottom: 5px; color: #654321; }
-        .score-value { font-size: 1.5em; font-weight: bold; color: #2E2822; }
         .board-wrapper.flipped { transform: rotate(180deg); }
         .board-wrapper.flipped .piece, .board-wrapper.flipped .coordinate-label { transform: rotate(180deg); }
         @media (max-width: 950px) { .main-content { flex-direction: column; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
-        @media (max-width: 600px) { .game-container { padding: 15px; } .board-wrapper { padding: 10px; } .square { width: 40px; height: 40px; } .piece { width: 30px; height: 30px; font-size: 14px; } .rank-labels { left: 2px; top: 10px; height: 320px; } .file-labels { bottom: 2px; left: 10px; width: 320px; } .rank-labels .coordinate-label { height: 40px; } .file-labels .coordinate-label { width: 40px; } .coordinate-label { font-size: 10px; } .controls { gap: 8px; } .btn { padding: 10px 16px; font-size: 14px; } }
     </style>
 </head>
 <body>
@@ -70,7 +57,7 @@
                 </div>
             </div>
             <div class="info-panel">
-                <div class="current-turn white-turn" id="currentTurn">Loading...</div>
+                <div class="current-turn" id="currentTurn">Loading...</div>
                 <div class="score-display">
                     <div class="score-item"><div class="score-label">White Score</div><div class="score-value" id="whiteScore">0</div></div>
                     <div class="score-item"><div class="score-label">Black Score</div><div class="score-value" id="blackScore">0</div></div>
@@ -84,131 +71,240 @@
             </div>
         </div>
     </div>
+
     <script>
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${protocol}//${window.location.host}`);
-        let myColor = null; let currentGameState = {}; let previousGameState = null; let selectedPosition = null; let isAnimating = false;
-        let messageQueue = [];
 
-        const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
+        // --- Client-side state variables ---
+        let myColor = null;
+        let currentGameState = {};
+        let previousGameState = null;
+        let selectedPosition = null;
+        let isAnimating = false;
 
-        socket.onmessage = (event) => { messageQueue.push(JSON.parse(event.data)); processMessageQueue(); };
+        // --- DOM element references ---
+        const boardElement = document.getElementById('gameBoard');
+        const boardWrapper = document.getElementById('boardWrapper');
+        const messageElement = document.getElementById('gameMessage');
+        const turnElement = document.getElementById('currentTurn');
+        const whiteScoreElement = document.getElementById('whiteScore');
+        const blackScoreElement = document.getElementById('blackScore');
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
 
-        async function processMessageQueue() {
-            if (isAnimating || messageQueue.length === 0) return;
-            const data = messageQueue.shift();
+        // --- WebSocket Message Handler ---
+        socket.onmessage = async (event) => {
+            // If an animation is in progress, wait before processing the next message.
+            if (isAnimating) {
+                setTimeout(() => socket.onmessage(event), 100);
+                return;
+            }
+
+            const data = JSON.parse(event.data);
+
             switch (data.type) {
-                case 'waiting': document.getElementById('waitingScreen').style.display = 'flex'; document.querySelector('.game-container').style.display = 'none'; break;
-                case 'gameStart': myColor = data.playerColor; document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`; document.getElementById('waitingScreen').style.display = 'none'; document.querySelector('.game-container').style.display = 'block'; currentGameState = data.gameState; await renderGame(currentGameState); break;
+                case 'waiting':
+                    document.getElementById('waitingScreen').style.display = 'flex';
+                    document.querySelector('.game-container').style.display = 'none';
+                    break;
+                case 'gameStart':
+                    myColor = data.playerColor;
+                    document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`;
+                    document.getElementById('waitingScreen').style.display = 'none';
+                    document.querySelector('.game-container').style.display = 'block';
+                    // Fallthrough to render initial state
                 case 'gameStateUpdate':
+                    // Store the current state as the "previous" one for animation purposes.
+                    previousGameState = currentGameState;
+                    currentGameState = data.gameState;
+
+                    // Set the animating flag to block user input.
                     isAnimating = true;
-                    if (data.lastMove && previousGameState) { await renderGame(previousGameState, false); await animateMove(data.lastMove.from, data.lastMove.to); }
-                    currentGameState = data.gameState; await renderGame(currentGameState);
+
+                    // If a move was made, perform the animation.
+                    if (data.lastMove && previousGameState.board) {
+                        // First, render the board in its "before" state (without updating UI text).
+                        await renderBoard(previousGameState.board, false);
+                        // Then, animate the piece from its old to its new position.
+                        await animateMove(data.lastMove.from, data.lastMove.to);
+                    }
+
+                    // Finally, render the definitive "after" state and update all UI.
+                    await renderBoard(currentGameState.board, true);
+                    updateUI(currentGameState);
+                    
+                    // Release the animation lock.
                     isAnimating = false;
                     break;
-                case 'opponentDisconnect': messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; break;
+                case 'opponentDisconnect':
+                    messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again.";
+                    turnElement.textContent = "Game Over";
+                    turnElement.className = "current-turn";
+                    boardElement.style.pointerEvents = 'none';
+                    break;
             }
-            previousGameState = JSON.parse(JSON.stringify(currentGameState));
-            if (messageQueue.length > 0) { requestAnimationFrame(processMessageQueue); }
-        }
+        };
 
-        function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
-        function renderGame(state, updateUI = true) {
+        /**
+         * Renders the board based on a given board data array.
+         * Can optionally skip updating UI elements for intermediate animation frames.
+         */
+        function renderBoard(boardData, updatePromotionChoices = true) {
             return new Promise(resolve => {
-                const isFlipped = myColor === 'black'; boardWrapper.classList.toggle('flipped', isFlipped); renderCoordinates(isFlipped);
+                const isFlipped = myColor === 'black';
+                boardWrapper.classList.toggle('flipped', isFlipped);
+                renderCoordinates(isFlipped);
+                
                 const fragment = document.createDocumentFragment();
-                for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) {
-                    const square = document.createElement('div'); const isLightSquare = (row + col) % 2 === 0; square.className = `square ${isLightSquare ? 'light' : 'dark'}`; square.dataset.row = row; square.dataset.col = col;
-                    const piece = state.board[row][col];
-                    if (piece) { const pieceElement = document.createElement('div'); pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`; if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) { pieceElement.classList.add('selected'); } pieceElement.textContent = piece.number; square.appendChild(pieceElement); }
-                    if (state.gameState === 'choosing_promotion' && state.promotionChoices?.some(p => p.row === row && p.col === col)) { square.classList.add('promotion-choice'); }
-                    fragment.appendChild(square);
-                }}
-                boardElement.innerHTML = ''; boardElement.appendChild(fragment);
-                if (updateUI) {
-                    whiteScoreElement.textContent = state.whiteScore; blackScoreElement.textContent = state.blackScore; messageElement.textContent = state.lastMessage;
-                    if (state.gameOver) { turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; } else { turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`; turnElement.className = `current-turn ${state.currentPlayer}-turn`; const myTurn = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor) || (state.gameState !== 'choosing_promotion' && state.currentPlayer === myColor); boardElement.style.pointerEvents = myTurn ? 'auto' : 'none'; }
-                    undoBtn.disabled = !state.canUndo; redoBtn.disabled = !state.canRedo;
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const square = document.createElement('div');
+                        const isLightSquare = (row + col) % 2 === 0;
+                        square.className = `square ${isLightSquare ? 'light' : 'dark'}`;
+                        square.dataset.row = row;
+                        square.dataset.col = col;
+                        
+                        const piece = boardData[row][col];
+                        if (piece) {
+                            const pieceElement = document.createElement('div');
+                            pieceElement.className = `piece ${piece.color}`;
+                            if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) {
+                                pieceElement.classList.add('selected');
+                            }
+                            pieceElement.textContent = piece.number;
+                            square.appendChild(pieceElement);
+                        }
+
+                        // Highlight promotion choices if necessary
+                        if (updatePromotionChoices && currentGameState.gameState === 'choosing_promotion' && currentGameState.promotionChoices?.some(p => p.row === row && p.col === col)) {
+                            square.classList.add('promotion-choice');
+                        }
+                        fragment.appendChild(square);
+                    }
                 }
-                requestAnimationFrame(() => resolve());
+                boardElement.innerHTML = '';
+                boardElement.appendChild(fragment);
+                requestAnimationFrame(resolve);
             });
         }
         
+        /**
+         * Updates all UI text elements based on the current game state.
+         */
+        function updateUI(state) {
+            whiteScoreElement.textContent = state.whiteScore;
+            blackScoreElement.textContent = state.blackScore;
+            messageElement.textContent = state.lastMessage;
+            
+            if (state.gameOver) {
+                turnElement.textContent = "Game Over";
+                turnElement.className = "current-turn";
+                boardElement.style.pointerEvents = 'none';
+            } else {
+                turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'}'s Turn`;
+                turnElement.className = `current-turn ${state.currentPlayer}-turn`;
+                const isMyTurn = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor) || (state.gameState !== 'choosing_promotion' && state.currentPlayer === myColor);
+                boardElement.style.pointerEvents = isMyTurn ? 'auto' : 'none';
+            }
+            
+            undoBtn.disabled = !state.canUndo;
+            redoBtn.disabled = !state.canRedo;
+        }
+
+        /**
+         * NEW ANIMATION FUNCTION (FROM SCRATCH)
+         * Animate a piece from a starting coordinate to an ending one.
+         */
         function animateMove(from, to) {
             return new Promise(resolve => {
+                // Case 1: A piece is moving from one square to another.
                 if (from && to) {
                     const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
                     const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`);
                     const pieceEl = fromSquare?.querySelector('.piece');
+
                     if (!pieceEl || !toSquare) return resolve();
                     
+                    // getBoundingClientRect provides the visual position on the screen.
+                    // This works perfectly even if the board is rotated.
                     const fromRect = fromSquare.getBoundingClientRect();
                     const toRect = toSquare.getBoundingClientRect();
                     
-                    // The browser's getBoundingClientRect() provides the correct visual delta,
-                    // regardless of the board's rotation. We do not need to manually negate it.
                     const deltaX = toRect.left - fromRect.left;
                     const deltaY = toRect.top - fromRect.top;
-
-                    const isFlipped = myColor === 'black';
+                    
+                    // Build the transform string.
                     let transformString = `translate(${deltaX}px, ${deltaY}px)`;
                     
-                    // If the board is flipped, we must add rotate(180deg) to the transform
-                    // to keep the piece from flipping upside down during the animation.
-                    if (isFlipped) {
+                    // If the board is flipped, we must also apply the rotation
+                    // to keep the piece from flipping upside down during the slide.
+                    if (myColor === 'black') {
                         transformString += ' rotate(180deg)';
                     }
                     
-                    pieceEl.style.zIndex = '1000';
+                    pieceEl.style.zIndex = '1000'; // Ensure the piece slides over others.
                     pieceEl.style.transform = transformString;
                     
+                    // Listen for the end of the transition, then clean up.
                     pieceEl.addEventListener('transitionend', () => {
                         pieceEl.style.zIndex = '';
-                        // Reset the inline style so the CSS class rule takes over again.
-                        pieceEl.style.transform = '';
+                        pieceEl.style.transform = ''; // Reset inline style so CSS classes take over.
                         resolve();
                     }, { once: true });
 
+                // Case 2: A piece is being removed (e.g., from a capture or promotion).
                 } else if (from && !to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
-                    const pieceEl = fromSquare?.querySelector('.piece');
-                    if (!pieceEl) return resolve();
-                    pieceEl.style.transform = 'scale(0)';
-                    pieceEl.style.opacity = '0';
-                    pieceEl.addEventListener('transitionend', () => resolve(), { once: true });
+                     const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
+                     const pieceEl = fromSquare?.querySelector('.piece');
+                     if (!pieceEl) return resolve();
+
+                     pieceEl.style.transform = 'scale(0)';
+                     pieceEl.style.opacity = '0';
+                     pieceEl.addEventListener('transitionend', resolve, { once: true });
                 } else {
+                    // No animation needed.
                     resolve();
                 }
             });
         }
-
-        function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
         
+        function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
+        function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
+        function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
+        function newGame() { window.location.reload(); }
+
+        // --- Board Click Handler ---
         boardElement.addEventListener('click', (e) => {
             if (isAnimating) return;
-            const target = e.target.closest('.square'); if (!target || !currentGameState.board) return;
-            const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col);
+            const target = e.target.closest('.square');
+            if (!target || !currentGameState.board) return;
+
+            const row = parseInt(target.dataset.row);
+            const col = parseInt(target.dataset.col);
             const isMyTurn = (currentGameState.gameState === 'choosing_promotion' && currentGameState.currentPlayer === myColor) || (currentGameState.gameState !== 'choosing_promotion' && currentGameState.currentPlayer === myColor);
+
             if (!isMyTurn) return;
 
+            // Handle promotion choice click
             if (currentGameState.gameState === 'choosing_promotion') {
                 socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } }));
                 return;
             }
+
             const piece = currentGameState.board[row][col];
+            // Handle selecting a piece
             if (piece && piece.color === myColor) {
-                selectedPosition = { row, col }; const direction = piece.color === 'white' ? -1 : 1, validMoves = []; const newRow = row + direction;
-                if (newRow >= 0 && newRow < 8 && !currentGameState.board[newRow][col]) validMoves.push({ row: newRow, col });
-                for (const dC of [-1, 1]) { const newCol = col + dC; if (newRow >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol }); }
-                renderGame(currentGameState); highlightValidMoves(validMoves);
-            } else if (selectedPosition) {
-                socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]);
+                selectedPosition = { row, col };
+                renderBoard(currentGameState.board); // Re-render to show selection
+            } 
+            // Handle making a move
+            else if (selectedPosition) {
+                socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } }));
+                selectedPosition = null;
+                renderBoard(currentGameState.board); // Re-render to remove selection highlight
             }
         });
-        
-        function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
-        function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
-        function newGame() { window.location.reload(); }
     </script>
 </body>
 </html>
