@@ -159,7 +159,7 @@
         }
         function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
         boardElement.addEventListener('click', (e) => {
-            const target = e.target.closest('.square'); if (!target || isAnimating || !currentGameState.board) return;
+            const target = e.target.closest('.square'); if (!target || isAnimating || !currentGameState.board || currentGameState.gameOver) return;
             const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col); const piece = currentGameState.board[row][col];
             if (currentGameState.gameState === 'choosing_promotion' && currentGameState.currentPlayer === myColor) { socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } })); return; }
             if (currentGameState.currentPlayer !== myColor) return;
@@ -172,7 +172,27 @@
         });
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
-        function resignGame() { if (confirm('Are you sure you want to resign?')) { socket.send(JSON.stringify({ type: 'resign' })); } }
+        function resignGame() {
+            if (confirm('Are you sure you want to resign?')) {
+                // 1. Send the resign message to the server for the opponent.
+                socket.send(JSON.stringify({ type: 'resign' }));
+                
+                // 2. Immediately update the local UI for instant feedback.
+                const opponentColor = myColor === 'white' ? 'Black' : 'White';
+                messageElement.textContent = `You resigned. ${opponentColor} wins.`;
+                turnElement.textContent = "Game Over";
+                turnElement.className = "current-turn";
+                boardElement.style.pointerEvents = 'none';
+                resignBtn.disabled = true;
+                undoBtn.disabled = true;
+                redoBtn.disabled = true;
+
+                // 3. Mark the local game state as over to prevent any further actions.
+                if (currentGameState) {
+                    currentGameState.gameOver = true;
+                }
+            }
+        }
         function newGame() { window.location.reload(); }
     </script>
 </body>
