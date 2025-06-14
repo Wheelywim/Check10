@@ -6,136 +6,40 @@ const WebSocket = require('ws');
 // --- Main Game Logic Class (Un-minified for clarity) ---
 class Check10Game {
     constructor() {
-        this.board = [];
-        this.currentPlayer = 'white';
-        this.whiteScore = 0;
-        this.blackScore = 0;
-        this.gameOver = false;
-        this.gameState = 'playing'; // 'playing' or 'choosing_promotion'
-        this.promotionChoices = null;
-        this.promotionPoints = 0;
-        this.gameHistory = [];
-        this.historyIndex = -1;
-        this.maxHistorySize = 50;
-        this.lastMessage = "White player starts!";
-
-        this.initializeBoard();
-        this.saveGameState();
+        this.board = []; this.currentPlayer = 'white'; this.whiteScore = 0; this.blackScore = 0; this.gameOver = false; this.gameState = 'playing'; this.promotionChoices = null; this.promotionPoints = 0; this.gameHistory = []; this.historyIndex = -1; this.maxHistorySize = 50; this.lastMessage = "White player starts!";
+        this.initializeBoard(); this.saveGameState();
     }
-
     initializeBoard() {
-        this.board = Array(8).fill(null).map(() => Array(8).fill(null));
-        const rowTemplate = [8, 7, 6, 5, 4, 3, 2, 1];
-        const rowTemplate2 = [1, 2, 3, 4, 5, 6, 7, 8];
+        this.board = Array(8).fill(null).map(() => Array(8).fill(null)); const rowTemplate = [8, 7, 6, 5, 4, 3, 2, 1]; const rowTemplate2 = [1, 2, 3, 4, 5, 6, 7, 8];
         for (let col = 0; col < 8; col++) {
-            this.board[0][col] = { color: 'black', number: rowTemplate[col], promoted: false };
-            this.board[1][col] = { color: 'black', number: rowTemplate2[col], promoted: false };
-            this.board[6][col] = { color: 'white', number: rowTemplate[col], promoted: false };
-            this.board[7][col] = { color: 'white', number: rowTemplate2[col], promoted: false };
+            this.board[0][col] = { color: 'black', number: rowTemplate[col], promoted: false }; this.board[1][col] = { color: 'black', number: rowTemplate2[col], promoted: false };
+            this.board[6][col] = { color: 'white', number: rowTemplate[col], promoted: false }; this.board[7][col] = { color: 'white', number: rowTemplate2[col], promoted: false };
         }
     }
-
     getValidMoves(row, col) {
-        const validMoves = [];
-        const piece = this.board[row][col];
-        if (!piece) return validMoves;
-        const direction = piece.color === 'white' ? -1 : 1;
-        const newRow = row + direction;
-        if (newRow >= 0 && newRow < 8 && !this.board[newRow][col]) {
-            validMoves.push({ row: newRow, col });
-        }
-        for (const deltaCol of [-1, 1]) {
-            const newCol = col + deltaCol;
-            if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !this.board[newRow][newCol]) {
-                validMoves.push({ row: newRow, col: newCol });
-            }
-        }
+        const validMoves = []; const piece = this.board[row][col]; if (!piece) return validMoves; const direction = piece.color === 'white' ? -1 : 1; const newRow = row + direction;
+        if (newRow >= 0 && newRow < 8 && !this.board[newRow][col]) { validMoves.push({ row: newRow, col }); }
+        for (const deltaCol of [-1, 1]) { const newCol = col + deltaCol; if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !this.board[newRow][newCol]) { validMoves.push({ row: newRow, col: newCol }); } }
         return validMoves;
     }
-
-    isValidMove(fromRow, fromCol, toRow, toCol) {
-        const piece = this.board[fromRow][fromCol];
-        if (!piece || piece.color !== this.currentPlayer) return false;
-        if (this.board[toRow][toCol]) return false;
-        const validMoves = this.getValidMoves(fromRow, fromCol);
-        return validMoves.some(move => move.row === toRow && move.col === toCol);
-    }
-
+    isValidMove(fromRow, fromCol, toRow, toCol) { const piece = this.board[fromRow][fromCol]; if (!piece || piece.color !== this.currentPlayer) return false; if (this.board[toRow][toCol]) return false; const validMoves = this.getValidMoves(fromRow, fromCol); return validMoves.some(move => move.row === toRow && move.col === toCol); }
     makeMove(fromRow, fromCol, toRow, toCol) {
-        if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) return false;
-
-        const piece = this.board[fromRow][fromCol];
-        this.board[toRow][toCol] = piece;
-        this.board[fromRow][fromCol] = null;
-        let pointsScored = 0;
-
+        if (!this.isValidMove(fromRow, fromCol, toRow, toCol)) return false; const piece = this.board[fromRow][fromCol]; this.board[toRow][toCol] = piece; this.board[fromRow][fromCol] = null; let pointsScored = 0;
         if (this.checkPromotion(toRow, toCol)) {
-            const promotionPoints = this.processPromotion(toRow, toCol);
-            if (promotionPoints > 0) {
-                pointsScored += promotionPoints;
-            } else if (this.gameState === 'choosing_promotion') {
-                this.saveGameState(); // Save state while waiting for choice
-                return true;
-            }
+            const promotionPoints = this.processPromotion(toRow, toCol); if (promotionPoints > 0) { pointsScored += promotionPoints; } else if (this.gameState === 'choosing_promotion') { this.saveGameState(); return true; }
         }
-
-        const combinations = this.checkCombinationsAroundPosition(toRow, toCol);
-        if (combinations.length > 0) {
-            pointsScored += this.processCombinations(combinations);
-        }
-
-        if (pointsScored > 0) {
-            if (this.currentPlayer === 'white') this.whiteScore += pointsScored;
-            else this.blackScore += pointsScored;
-            this.lastMessage = `${this.currentPlayer} scored ${pointsScored} points!`;
-        } else {
-            this.lastMessage = `${this.currentPlayer} moved ${piece.number}.`;
-        }
-
-        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
-        this.checkGameEnd();
-        this.saveGameState();
-        return true;
+        const combinations = this.checkCombinationsAroundPosition(toRow, toCol); if (combinations.length > 0) { pointsScored += this.processCombinations(combinations); }
+        if (pointsScored > 0) { if (this.currentPlayer === 'white') this.whiteScore += pointsScored; else this.blackScore += pointsScored; this.lastMessage = `${this.currentPlayer} scored ${pointsScored} points!`; } else { this.lastMessage = `${this.currentPlayer} moved ${piece.number}.`; }
+        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white'; this.checkGameEnd(); this.saveGameState(); return true;
     }
-    
-    // *** THIS IS THE MAIN SERVER-SIDE FIX ***
     handlePromotionChoice(row, col) {
-        if (this.gameState !== 'choosing_promotion') return false;
-        
-        const chosenPieceData = this.promotionChoices.find(p => p.row === row && p.col === col);
-        if (!chosenPieceData) {
-            this.lastMessage = `Please click on one of the highlighted pieces.`;
-            return false;
-        }
-
-        const promotingPlayer = this.currentPlayer;
-        
-        // Remove the chosen piece
-        this.board[row][col] = null;
-        
-        // Award points
-        const scoredPoints = this.promotionPoints;
-        if (promotingPlayer === 'white') {
-            this.whiteScore += scoredPoints;
-        } else {
-            this.blackScore += scoredPoints;
-        }
-        
-        // Reset game state
-        this.gameState = 'playing';
-        this.promotionChoices = null;
-        this.promotionPoints = 0;
-        this.lastMessage = `${promotingPlayer} promoted and scored ${scoredPoints} points!`;
-        
-        // Switch turn to the other player
+        if (this.gameState !== 'choosing_promotion') return false; const chosenPieceData = this.promotionChoices.find(p => p.row === row && p.col === col); if (!chosenPieceData) { this.lastMessage = `Please click on one of the highlighted pieces.`; return false; }
+        const promotingPlayer = this.currentPlayer; this.board[row][col] = null; const scoredPoints = this.promotionPoints;
+        if (promotingPlayer === 'white') { this.whiteScore += scoredPoints; } else { this.blackScore += scoredPoints; }
+        this.gameState = 'playing'; this.promotionChoices = null; this.promotionPoints = 0; this.lastMessage = `${promotingPlayer} promoted and scored ${scoredPoints} points!`;
         this.currentPlayer = (promotingPlayer === 'white' ? 'black' : 'white');
-        
-        // Finalize the turn
-        this.checkGameEnd();
-        this.saveGameState();
-        return true;
+        this.checkGameEnd(); this.saveGameState(); return true;
     }
-
     checkPromotion(row, col) { const piece = this.board[row][col]; if (!piece) return false; if ((piece.color === 'white' && row === 0) || (piece.color === 'black' && row === 7)) { piece.promoted = true; return true; } return false; }
     processPromotion(row, col) { const piece = this.board[row][col]; const opponentColor = piece.color === 'white' ? 'black' : 'white'; const matchingPieces = []; for (let r = 0; r < 8; r++) { for (let c = 0; c < 8; c++) { const targetPiece = this.board[r][c]; if (targetPiece && targetPiece.color === opponentColor && targetPiece.number === piece.number && !targetPiece.promoted) { matchingPieces.push({ row: r, col: c, piece: targetPiece }); } } } if (matchingPieces.length === 0) return 0; if (matchingPieces.length === 1) { this.board[matchingPieces[0].row][matchingPieces[0].col] = null; return piece.number; } else { this.showPromotionChoice(matchingPieces, piece.number); return 0; } }
     showPromotionChoice(matchingPieces, promotedNumber) { this.gameState = 'choosing_promotion'; this.promotionChoices = matchingPieces; this.promotionPoints = promotedNumber; this.lastMessage = `Promotion! Choose which opponent ${promotedNumber} to remove.`; }
@@ -145,19 +49,17 @@ class Check10Game {
     processCombinations(combinations) { let points = 0; const piecesToRemove = new Set(); for (const combo of combinations) { for (const pos of combo) { if (pos.piece.color !== this.currentPlayer && !pos.piece.promoted) { piecesToRemove.add(`${pos.row},${pos.col}`); } } } for (const key of piecesToRemove) { const [row, col] = key.split(',').map(Number); if (this.board[row][col]) { points += this.board[row][col].number; this.board[row][col] = null; } } return points; }
     calculatePromotedPieceValues() { let whitePromotedValue = 0, blackPromotedValue = 0; for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { const piece = this.board[row][col]; if (piece && piece.promoted) { if (piece.color === 'white') whitePromotedValue += piece.number; else blackPromotedValue += piece.number; } } } return { whitePromotedValue, blackPromotedValue }; }
     hasValidMoves(player) { for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { if (this.board[row][col] && this.board[row][col].color === player) { if (this.getValidMoves(row, col).length > 0) return true; } } } return false; }
-    checkGameEnd() { if (!this.hasValidMoves(this.currentPlayer)) { this.gameOver = true; const promotedValues = this.calculatePromotedPieceValues(); const finalWhiteScore = this.whiteScore + promotedValues.whitePromotedValue; const finalBlackScore = this.blackScore + promotedValues.blackPromotedValue; const winner = finalWhiteScore > finalBlackScore ? 'White' : finalBlackScore > finalWhiteScore ? 'Black' : 'Tie'; if (winner === 'Tie') { this.lastMessage = `Game Over! It's a tie! Both scored ${finalWhiteScore}.`; } else { const winnerScore = winner === 'White' ? finalWhiteScore : finalBlackScore; const loserScore = winner === 'White' ? finalBlackScore : finalWhiteScore; this.lastMessage = `Game Over! ${winner} wins ${winnerScore} to ${loserScore}.`; } this.whiteScore = finalWhiteScore; this.blackScore = finalBlackScore; this.updateScores(); return true; } return false; }
+    checkGameEnd() { if (!this.hasValidMoves(this.currentPlayer)) { this.gameOver = true; const promotedValues = this.calculatePromotedPieceValues(); const finalWhiteScore = this.whiteScore + promotedValues.whitePromotedValue; const finalBlackScore = this.blackScore + promotedValues.blackPromotedValue; const winner = finalWhiteScore > finalBlackScore ? 'White' : finalBlackScore > finalWhiteScore ? 'Black' : 'Tie'; if (winner === 'Tie') { this.lastMessage = `Game Over! It's a tie! Both scored ${finalWhiteScore}.`; } else { const winnerScore = winner === 'White' ? finalWhiteScore : finalBlackScore; const loserScore = winner === 'White' ? finalBlackScore : finalWhiteScore; this.lastMessage = `Game Over! ${winner} wins ${winnerScore} to ${loserScore}.`; } this.whiteScore = finalWhiteScore; this.blackScore = finalBlackScore; return true; } return false; }
     saveGameState() { const gameState = { board: this.board.map(row => row.map(p => p ? { ...p } : null)), currentPlayer: this.currentPlayer, whiteScore: this.whiteScore, blackScore: this.blackScore, gameOver: this.gameOver, gameState: this.gameState, promotionChoices: this.promotionChoices, lastMessage: this.lastMessage }; this.gameHistory = this.gameHistory.slice(0, this.historyIndex + 1); this.gameHistory.push(gameState); this.historyIndex++; if (this.gameHistory.length > this.maxHistorySize) { this.gameHistory.shift(); this.historyIndex--; } }
     restoreGameState(gameState) { this.board = gameState.board.map(row => row.map(p => p ? { ...p } : null)); this.currentPlayer = gameState.currentPlayer; this.whiteScore = gameState.whiteScore; this.blackScore = gameState.blackScore; this.gameOver = gameState.gameOver; this.gameState = 'playing'; this.promotionChoices = null; this.promotionPoints = 0; this.lastMessage = gameState.lastMessage; }
     canUndo() { return this.historyIndex > 0; }
     canRedo() { return this.historyIndex < this.gameHistory.length - 1; }
     undo() { if (this.canUndo()) { this.historyIndex--; this.restoreGameState(this.gameHistory[this.historyIndex]); this.lastMessage = "Move undone."; } }
     redo() { if (this.canRedo()) { this.historyIndex++; this.restoreGameState(this.gameHistory[this.historyIndex]); this.lastMessage = "Move redone."; } }
-    updateScores() { /* Only relevant on client */ }
 }
 
-
 // --- HTTP Server and WebSocket Server (No changes here) ---
-const server = http.createServer((req, res) => { fs.readFile(path.join(__dirname, public, 'index.html'), (err, data) => { if (err) { res.writeHead(500); res.end('Error loading index.html'); return; } res.writeHead(200); res.end(data); }); });
+const server = http.createServer((req, res) => { fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => { if (err) { res.writeHead(500); res.end('Error loading index.html'); return; } res.writeHead(200); res.end(data); }); });
 const wss = new WebSocket.Server({ server });
 let rooms = {}; let waitingPlayer = null; let nextRoomId = 1;
 
@@ -165,15 +67,16 @@ wss.on('connection', ws => {
     console.log('Client connected'); let playerColor; let roomId;
     if (waitingPlayer) {
         roomId = waitingPlayer.roomId; const room = rooms[roomId]; room.playerBlack = ws; playerColor = 'black'; ws.playerColor = 'black'; ws.roomId = roomId; console.log(`Player Black joined room ${roomId}. Starting game.`); waitingPlayer = null; const initialGameState = room.game.gameHistory[room.game.historyIndex];
-        room.playerWhite.send(JSON.stringify({ type: 'gameStart', playerColor: 'white', gameState: initialGameState }));
-        room.playerBlack.send(JSON.stringify({ type: 'gameStart', playerColor: 'black', gameState: initialGameState }));
+        room.playerWhite.send(JSON.stringify({ type: 'gameStart', playerColor: 'white', gameState: initialGameState })); room.playerBlack.send(JSON.stringify({ type: 'gameStart', playerColor: 'black', gameState: initialGameState }));
     } else {
         roomId = nextRoomId++; playerColor = 'white'; ws.playerColor = 'white'; ws.roomId = roomId; const game = new Check10Game(); rooms[roomId] = { game: game, playerWhite: ws, playerBlack: null }; waitingPlayer = ws; console.log(`Player White created room ${roomId}. Waiting for opponent.`);
         ws.send(JSON.stringify({ type: 'waiting' }));
     }
     ws.on('message', message => {
         const data = JSON.parse(message); const room = rooms[ws.roomId]; if (!room) return; const game = room.game; let lastMove = null;
-        if (data.type !== 'newGameRequest' && game.currentPlayer !== ws.playerColor && game.gameState !== 'choosing_promotion') { return; }
+        if (data.type !== 'newGameRequest' && game.gameState !== 'choosing_promotion' && game.currentPlayer !== ws.playerColor) { return; }
+        if (game.gameState === 'choosing_promotion' && data.type !== 'promotionChoice') { return; }
+
         switch (data.type) {
             case 'move': if (game.makeMove(data.from.row, data.from.col, data.to.row, data.to.col)) { lastMove = { from: data.from, to: data.to }; } break;
             case 'promotionChoice': if (game.handlePromotionChoice(data.pos.row, data.pos.col)) { lastMove = { from: data.pos, to: null }; } break;
