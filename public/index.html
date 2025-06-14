@@ -127,12 +127,14 @@
                         undoBtn.disabled = true;
                         redoBtn.disabled = true;
                     } else {
+                        const isMyTurn = state.currentPlayer === myColor;
                         turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
                         turnElement.className = `current-turn ${state.currentPlayer}-turn`;
-                        boardElement.style.pointerEvents = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor || state.currentPlayer === myColor) ? 'auto' : 'none';
+                        boardElement.style.pointerEvents = isMyTurn ? 'auto' : 'none';
                         undoBtn.disabled = !state.canUndo;
                         redoBtn.disabled = !state.canRedo;
-                        resignBtn.disabled = false;
+                        // *** FIX HERE: Only enable resign button on the player's own turn ***
+                        resignBtn.disabled = !isMyTurn;
                     }
                 }
                 requestAnimationFrame(() => resolve());
