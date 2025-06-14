@@ -79,6 +79,7 @@
                 <div class="controls">
                     <button class="btn btn-primary" onclick="requestUndo()" id="undoBtn" disabled>↶ Undo</button>
                     <button class="btn btn-primary" onclick="requestRedo()" id="redoBtn" disabled>↷ Redo</button>
+                    <button class="btn btn-primary" onclick="resignGame()" id="resignBtn">Resign</button>
                     <button class="btn btn-primary" onclick="newGame()">New Game</button>
                 </div>
             </div>
@@ -89,6 +90,7 @@
         const socket = new WebSocket(`${protocol}//${window.location.host}`);
         let myColor = null; let currentGameState = {}; let previousGameState = null; let selectedPosition = null; let isAnimating = false;
         const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
+        const resignBtn = document.getElementById('resignBtn');
         socket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
             switch (data.type) {
@@ -117,8 +119,21 @@
                 boardElement.innerHTML = ''; boardElement.appendChild(fragment);
                 if (updateUI) {
                     whiteScoreElement.textContent = state.whiteScore; blackScoreElement.textContent = state.blackScore; messageElement.textContent = state.lastMessage;
-                    if (state.gameOver) { turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; } else { turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`; turnElement.className = `current-turn ${state.currentPlayer}-turn`; boardElement.style.pointerEvents = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor || state.currentPlayer === myColor) ? 'auto' : 'none'; }
-                    undoBtn.disabled = !state.canUndo; redoBtn.disabled = !state.canRedo;
+                    if (state.gameOver) {
+                        turnElement.textContent = "Game Over";
+                        turnElement.className = "current-turn";
+                        boardElement.style.pointerEvents = 'none';
+                        resignBtn.disabled = true;
+                        undoBtn.disabled = true;
+                        redoBtn.disabled = true;
+                    } else {
+                        turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
+                        turnElement.className = `current-turn ${state.currentPlayer}-turn`;
+                        boardElement.style.pointerEvents = (state.gameState === 'choosing_promotion' && state.currentPlayer === myColor || state.currentPlayer === myColor) ? 'auto' : 'none';
+                        undoBtn.disabled = !state.canUndo;
+                        redoBtn.disabled = !state.canRedo;
+                        resignBtn.disabled = false;
+                    }
                 }
                 requestAnimationFrame(() => resolve());
             });
@@ -130,10 +145,8 @@
                     if (!pieceEl || !toSquare) return resolve();
                     const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect();
                     let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top;
-                    // *** THIS IS THE ANIMATION FIX ***
                     if (myColor === 'black') { deltaX = -deltaX; deltaY = -deltaY; }
                     pieceEl.style.zIndex = '1000';
-                    // The transform must include the rotation for flipped boards to prevent the piece from visually rotating during the move.
                     pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`;
                     pieceEl.addEventListener('transitionend', () => { pieceEl.style.zIndex = ''; pieceEl.style.transform = ''; resolve(); }, { once: true });
                 } else if (from && !to) {
@@ -159,6 +172,7 @@
         });
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
+        function resignGame() { if (confirm('Are you sure you want to resign?')) { socket.send(JSON.stringify({ type: 'resign' })); } }
         function newGame() { window.location.reload(); }
     </script>
 </body>
