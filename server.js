@@ -157,7 +157,7 @@ class Check10Game {
 
 
 // --- HTTP Server and WebSocket Server (No changes here) ---
-const server = http.createServer((req, res) => { fs.readFile(path.join(__dirname, 'index.html'), (err, data) => { if (err) { res.writeHead(500); res.end('Error loading index.html'); return; } res.writeHead(200); res.end(data); }); });
+const server = http.createServer((req, res) => { fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => { if (err) { res.writeHead(500); res.end('Error loading index.html'); return; } res.writeHead(200); res.end(data); }); });
 const wss = new WebSocket.Server({ server });
 let rooms = {}; let waitingPlayer = null; let nextRoomId = 1;
 
