@@ -55,6 +55,30 @@
         .score-value { font-size: 1.5em; font-weight: bold; color: #2E2822; }
         .board-wrapper.flipped { transform: rotate(180deg); }
         .board-wrapper.flipped .piece, .board-wrapper.flipped .coordinate-label { transform: rotate(180deg); }
+        
+        @keyframes flash {
+          0%, 100% {
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 255, 255, 0);
+          }
+          50% {
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 25px rgba(255, 0, 0, 0.8);
+          }
+        }
+        @keyframes fadeOut {
+          from {
+            transform: scale(1);
+            opacity: 1;
+          }
+          to {
+            transform: scale(0);
+            opacity: 0;
+          }
+        }
+        .piece-captured {
+          /* SLOWER: flash twice over 0.8s, then fade out over 0.8s */
+          animation: flash 0.4s 2, fadeOut 0.8s 0.8s forwards;
+        }
+
         @media (max-width: 950px) { .main-content { flex-direction: column; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
         @media (max-width: 600px) { .game-container { padding: 15px; } .board-wrapper { padding: 10px; } .square { width: 40px; height: 40px; } .piece { width: 30px; height: 30px; font-size: 14px; } .rank-labels { left: 2px; top: 10px; height: 320px; } .file-labels { bottom: 2px; left: 10px; width: 320px; } .rank-labels .coordinate-label { height: 40px; } .file-labels .coordinate-label { width: 40px; } .coordinate-label { font-size: 10px; } .controls { gap: 8px; } .btn { padding: 10px 16px; font-size: 14px; } }
     </style>
@@ -91,24 +115,88 @@
         let myColor = null; let currentGameState = {}; let previousGameState = null; let selectedPosition = null; let isAnimating = false;
         const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
         const resignBtn = document.getElementById('resignBtn');
+        const wooshSound = new Audio('/whoosh.mp3');
+        
         socket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
             switch (data.type) {
-                case 'waiting': document.getElementById('waitingScreen').style.display = 'flex'; document.querySelector('.game-container').style.display = 'none'; break;
-                case 'gameStart': myColor = data.playerColor; document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`; document.getElementById('waitingScreen').style.display = 'none'; document.querySelector('.game-container').style.display = 'block'; currentGameState = data.gameState; await renderGame(currentGameState); break;
+                case 'waiting': 
+                    document.getElementById('waitingScreen').style.display = 'flex'; 
+                    document.querySelector('.game-container').style.display = 'none'; 
+                    break;
+                case 'gameStart': 
+                    myColor = data.playerColor; 
+                    document.getElementById('playerInfo').textContent = `You are playing as ${myColor.charAt(0).toUpperCase() + myColor.slice(1)}`; 
+                    document.getElementById('waitingScreen').style.display = 'none'; 
+                    document.querySelector('.game-container').style.display = 'block'; 
+                    currentGameState = data.gameState; 
+                    await renderGame(currentGameState); 
+                    break;
                 case 'gameStateUpdate':
-                    // *** FIX HERE: If the game is over locally (e.g., from resignation), ignore subsequent updates. ***
                     if (currentGameState.gameOver) {
                         return;
                     }
-                    if (isAnimating) { setTimeout(() => socket.onmessage(event), 100); return; }
-                    if (data.lastMove && previousGameState) { isAnimating = true; await renderGame(previousGameState, false); await animateMove(data.lastMove.from, data.lastMove.to); isAnimating = false; }
-                    currentGameState = data.gameState; await renderGame(currentGameState); break;
-                case 'opponentDisconnect': messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; turnElement.textContent = "Game Over"; turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; break;
+                    if (isAnimating) {
+                        setTimeout(() => socket.onmessage(event), 100);
+                        return;
+                    }
+
+                    const newGameState = data.gameState;
+                    const lastMove = data.lastMove;
+
+                    if (previousGameState) {
+                        isAnimating = true;
+
+                        const capturedPieces = [];
+                        for (let r = 0; r < 8; r++) {
+                            for (let c = 0; c < 8; c++) {
+                                const prevPiece = previousGameState.board[r][c];
+                                const newPiece = newGameState.board[r][c];
+
+                                if (prevPiece && !newPiece) {
+                                    const pieceMovedFromHere = lastMove && lastMove.from && lastMove.from.row === r && lastMove.from.col === c;
+
+                                    if (!pieceMovedFromHere || (pieceMovedFromHere && lastMove.to === null)) {
+                                        capturedPieces.push({ row: r, col: c });
+                                    }
+                                }
+                            }
+                        }
+
+                        await renderGame(previousGameState, false);
+
+                        const animations = [];
+
+                        if (lastMove && lastMove.from && lastMove.to) {
+                            animations.push(animateMove(lastMove.from, lastMove.to));
+                        }
+
+                        if (capturedPieces.length > 0) {
+                            animations.push(animateCaptures(capturedPieces));
+                        }
+
+                        if (animations.length > 0) {
+                            await Promise.all(animations);
+                        }
+
+                        isAnimating = false;
+                    }
+
+                    currentGameState = newGameState;
+                    await renderGame(currentGameState);
+                    break;
+                case 'opponentDisconnect': 
+                    messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; 
+                    turnElement.textContent = "Game Over"; 
+                    turnElement.className = "current-turn"; 
+                    boardElement.style.pointerEvents = 'none'; 
+                    break;
             }
             previousGameState = JSON.parse(JSON.stringify(currentGameState));
         };
+
         function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
+        
         function renderGame(state, updateUI = true) {
             return new Promise(resolve => {
                 const isFlipped = myColor === 'black'; boardWrapper.classList.toggle('flipped', isFlipped); renderCoordinates(isFlipped);
@@ -143,26 +231,71 @@
                 requestAnimationFrame(() => resolve());
             });
         }
+        
         function animateMove(from, to) {
             return new Promise(resolve => {
-                if (from && to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
-                    if (!pieceEl || !toSquare) return resolve();
-                    const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect();
-                    let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top;
-                    if (myColor === 'black') { deltaX = -deltaX; deltaY = -deltaY; }
-                    pieceEl.style.zIndex = '1000';
-                    pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`;
-                    pieceEl.addEventListener('transitionend', () => { pieceEl.style.zIndex = ''; pieceEl.style.transform = ''; resolve(); }, { once: true });
-                } else if (from && !to) {
-                    const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const pieceEl = fromSquare?.querySelector('.piece');
-                    if (!pieceEl) return resolve();
-                    pieceEl.style.transform = 'scale(0)'; pieceEl.style.opacity = '0';
-                    pieceEl.addEventListener('transitionend', () => resolve(), { once: true });
-                } else { resolve(); }
+                if (!from || !to) {
+                    resolve();
+                    return;
+                }
+                const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
+                const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`);
+                const pieceEl = fromSquare?.querySelector('.piece');
+
+                if (!pieceEl || !toSquare) return resolve();
+
+                const fromRect = fromSquare.getBoundingClientRect();
+                const toRect = toSquare.getBoundingClientRect();
+                let deltaX = toRect.left - fromRect.left;
+                let deltaY = toRect.top - fromRect.top;
+
+                if (myColor === 'black') {
+                    deltaX = -deltaX;
+                    deltaY = -deltaY;
+                }
+
+                pieceEl.style.zIndex = '1000';
+                pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`;
+                pieceEl.addEventListener('transitionend', () => {
+                    // FIX: Do not reset the style here. The element will be replaced
+                    // by the final renderGame call, and resetting the style causes a flicker.
+                    resolve();
+                }, { once: true });
             });
         }
+
+        function animateCaptures(capturedPieces) {
+            if (capturedPieces.length > 0) {
+                const soundDelay = 800;
+                setTimeout(() => {
+                    wooshSound.play().catch(error => console.log("Audio play failed:", error));
+                }, soundDelay);
+            }
+
+            const animationPromises = capturedPieces.map(pos => {
+                return new Promise(resolve => {
+                    const square = boardElement.querySelector(`[data-row='${pos.row}'][data-col='${pos.col}']`);
+                    const pieceEl = square?.querySelector('.piece');
+                    if (!pieceEl) {
+                        resolve();
+                        return;
+                    }
+                    pieceEl.classList.add('piece-captured');
+                    // We need to specifically wait for the 'fadeOut' animation to end.
+                    // The 'animationend' event fires after each animation in a sequence.
+                    pieceEl.addEventListener('animationend', (event) => {
+                        // Only resolve the promise when the final animation ('fadeOut') is complete.
+                        if (event.animationName === 'fadeOut') {
+                            resolve();
+                        }
+                    });
+                });
+            });
+            return Promise.all(animationPromises);
+        }
+
         function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
+        
         boardElement.addEventListener('click', (e) => {
             const target = e.target.closest('.square'); if (!target || isAnimating || !currentGameState.board || currentGameState.gameOver) return;
             const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col); const piece = currentGameState.board[row][col];
@@ -175,14 +308,14 @@
                 renderGame(currentGameState); highlightValidMoves(validMoves);
             } else if (selectedPosition) { socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]); }
         });
+
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
+        
         function resignGame() {
             if (confirm('Are you sure you want to resign?')) {
-                // 1. Send the resign message to the server for the opponent.
                 socket.send(JSON.stringify({ type: 'resign' }));
                 
-                // 2. Immediately update the local UI for instant feedback.
                 const opponentColor = myColor === 'white' ? 'Black' : 'White';
                 messageElement.textContent = `You resigned. ${opponentColor} wins.`;
                 turnElement.textContent = "Game Over";
@@ -192,7 +325,6 @@
                 undoBtn.disabled = true;
                 redoBtn.disabled = true;
 
-                // 3. Mark the local game state as over to prevent any further actions.
                 if (currentGameState) {
                     currentGameState.gameOver = true;
                 }

@@ -157,7 +157,42 @@ class Check10Game {
 
 
 // --- HTTP Server and WebSocket Server (No changes here) ---
-const server = http.createServer((req, res) => { fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => { if (err) { res.writeHead(500); res.end('Error loading index.html'); return; } res.writeHead(200); res.end(data); }); });
+
+const server = http.createServer((req, res) => {
+    // Determine the file path from the request URL
+    let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
+
+    // Determine the content type based on the file extension
+    const extname = String(path.extname(filePath)).toLowerCase();
+    const mimeTypes = {
+        '.html': 'text/html',
+        '.js': 'text/javascript',
+        '.css': 'text/css',
+        '.mp3': 'audio/mpeg',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg'
+    };
+    const contentType = mimeTypes[extname] || 'application/octet-stream';
+
+    // Read the file and serve it
+    fs.readFile(filePath, (error, content) => {
+        if (error) {
+            // If the file is not found, return a 404 error
+            if (error.code == 'ENOENT') {
+                res.writeHead(404, { 'Content-Type': 'text/html' });
+                res.end('<h1>404 Not Found</h1>', 'utf-8');
+            } else {
+                // For other server errors, return a 500 error
+                res.writeHead(500);
+                res.end('Sorry, check with the site admin for error: ' + error.code + ' ..\n');
+            }
+        } else {
+            // If the file is found, serve it with the correct content type
+            res.writeHead(200, { 'Content-Type': contentType });
+            res.end(content, 'utf-8');
+        }
+    });
+});
 const wss = new WebSocket.Server({ server });
 let rooms = {}; let waitingPlayer = null; let nextRoomId = 1;
 
