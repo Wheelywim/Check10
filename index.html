@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Check 10 Online</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        h1 {
+            color: #333;
+        }
+        #game-container {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+        #board-container {
+            border: 2px solid #333;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 60px);
+            grid-template-rows: repeat(8, 60px);
+            width: 480px;
+            height: 480px;
+        }
+        .cell {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+            font-weight: bold;
+            position: relative;
+        }
+        .cell.light { background-color: #f0d9b5; }
+        .cell.dark { background-color: #b58863; }
+
+        .piece {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .piece.white { background-color: #fff; color: #000; }
+        .piece.black { background-color: #111; color: #fff; }
+        .piece.promoted::after {
+            content: '👑';
+            position: absolute;
+            bottom: -5px;
+            font-size: 16px;
+        }
+
+        .selected {
+            outline: 3px solid #00ff00;
+        }
+        .valid-move {
+            background-color: rgba(0, 255, 0, 0.4) !important;
+            cursor: pointer;
+        }
+        .promotion-choice {
+            outline: 3px solid #ffcc00;
+            cursor: pointer;
+        }
+
+        #info-panel {
+            width: 250px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+        #message-display {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #d9534f;
+            min-height: 40px;
+        }
+        .score { font-size: 1.2em; margin: 10px 0; }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        
+        .flashing {
+            animation: flash 0.3s 2;
+        }
+
+        @keyframes flash {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1.1);
+            }
+            50% {
+                opacity: 0.2;
+                transform: scale(0.9);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Check 10 Online</h1>
+    <div id="game-container">
+        <div id="board-container">
+            <div id="board"></div>
+        </div>
+        <div id="info-panel">
+            <h2>Game Info</h2>
+            <div id="player-info">Your Color: <span id="player-color">...</span></div>
+            <div id="message-display">Connecting to server...</div>
+            <div class="score">White Score: <span id="white-score">0</span></div>
+            <div class="score">Black Score: <span id="black-score">0</span></div>
+            <div id="controls">
+                <button id="undo-btn" disabled>Undo</button>
+                <button id="redo-btn" disabled>Redo</button>
+                <button id="new-game-btn">New Game</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const boardElement = document.getElementById('board');
+        const messageDisplay = document.getElementById('message-display');
+        const whiteScoreDisplay = document.getElementById('white-score');
+        const blackScoreDisplay = document.getElementById('black-score');
+        const playerColorDisplay = document.getElementById('player-color');
+        const undoBtn = document.getElementById('undo-btn');
+        const redoBtn = document.getElementById('redo-btn');
+        const newGameBtn = document.getElementById('new-game-btn');
+
+        let ws;
+        let selectedPiece = null;
+        let myColor = null;
+
+        function connect() {
+            // Use wss:// for secure connections (if your server supports it)
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${wsProtocol}//${window.location.host}`);
+
+            ws.onopen = () => {
+                console.log('Connected to WebSocket server.');
+                messageDisplay.textContent = 'Connection successful. Waiting for opponent...';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Received:', data);
+
+                switch (data.type) {
+                    case 'waiting':
+                        messageDisplay.textContent = 'Waiting for an opponent...';
+                        break;
+                    case 'gameStart':
+                        myColor = data.playerColor;
+                        playerColorDisplay.textContent = myColor.charAt(0).toUpperCase() + myColor.slice(1);
+                        updateBoard(data.gameState);
+                        break;
+                    case 'gameStateUpdate':
+                        if (data.removedPieces && data.removedPieces.length > 0) {
+                            flashAndThenUpdate(data.removedPieces, data.gameState);
+                        } else {
+                            updateBoard(data.gameState);
+                        }
+                        break;
+                    case 'opponentDisconnect':
+                        messageDisplay.textContent = 'Opponent disconnected. Please start a new game.';
+                        break;
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from WebSocket server.');
+                messageDisplay.textContent = 'Connection lost. Please refresh to start a new game.';
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+                messageDisplay.textContent = 'Connection error.';
+            };
+        }
+
+        function createBoard() {
+            boardElement.innerHTML = '';
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.id = `cell-${row}-${col}`;
+                    cell.className = `cell ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function updateBoard(gameState) {
+            // First, clear all pieces and special styles
+            document.querySelectorAll('.cell').forEach(cell => {
+                cell.innerHTML = '';
+                cell.classList.remove('valid-move', 'selected', 'promotion-choice', 'flashing');
+            });
+
+            // Draw pieces
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const pieceData = gameState.board[r][c];
+                    if (pieceData) {
+                        const cell = document.getElementById(`cell-${r}-${c}`);
+                        const pieceElement = document.createElement('div');
+                        pieceElement.className = `piece ${pieceData.color}`;
+                        if (pieceData.promoted) {
+                            pieceElement.classList.add('promoted');
+                        }
+                        pieceElement.textContent = pieceData.number;
+                        cell.appendChild(pieceElement);
+                    }
+                }
+            }
+            
+            // Highlight promotion choices if any
+            if (gameState.gameState === 'choosing_promotion' && gameState.currentPlayer === myColor) {
+                 gameState.promotionChoices.forEach(choice => {
+                    document.getElementById(`cell-${choice.row}-${choice.col}`).classList.add('promotion-choice');
+                });
+            }
+
+            // Update info panel
+            messageDisplay.textContent = gameState.lastMessage;
+            whiteScoreDisplay.textContent = gameState.whiteScore;
+            blackScoreDisplay.textContent = gameState.blackScore;
+            undoBtn.disabled = !gameState.canUndo;
+            redoBtn.disabled = !gameState.canRedo;
+
+            if (gameState.gameOver) {
+                // Handle game over state if needed
+            }
+        }
+        
+        function flashAndThenUpdate(piecesToFlash, gameState) {
+            piecesToFlash.forEach(pos => {
+                const cellElement = document.getElementById(`cell-${pos.row}-${pos.col}`);
+                if (cellElement) {
+                    cellElement.classList.add('flashing');
+                }
+            });
+
+            setTimeout(() => {
+                updateBoard(gameState);
+            }, 650); 
+        }
+
+        boardElement.addEventListener('click', (e) => {
+            const cell = e.target.closest('.cell');
+            if (!cell) return;
+
+            const row = parseInt(cell.dataset.row, 10);
+            const col = parseInt(cell.dataset.col, 10);
+            
+            if (cell.classList.contains('promotion-choice')) {
+                ws.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } }));
+                return;
+            }
+
+            if (cell.classList.contains('valid-move')) {
+                ws.send(JSON.stringify({ type: 'move', from: selectedPiece, to: { row, col } }));
+                selectedPiece = null;
+                // Board will clear selection on next update
+                return;
+            }
+
+            const piece = cell.querySelector('.piece');
+            selectedPiece = null;
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('selected', 'valid-move'));
+
+            if (piece) {
+                selectedPiece = { row, col };
+                cell.classList.add('selected');
+                // Temporarily show valid moves on client for better UX
+                const direction = piece.classList.contains('white') ? -1 : 1;
+                const moves = [
+                    {r: row + direction, c: col},
+                    {r: row + direction, c: col - 1},
+                    {r: row + direction, c: col + 1},
+                ];
+                moves.forEach(move => {
+                    if (move.r >= 0 && move.r < 8 && move.c >= 0 && move.c < 8) {
+                        const targetCell = document.getElementById(`cell-${move.r}-${move.c}`);
+                        if (targetCell && !targetCell.hasChildNodes()) {
+                            targetCell.classList.add('valid-move');
+                        }
+                    }
+                });
+            }
+        });
+
+        undoBtn.addEventListener('click', () => ws.send(JSON.stringify({ type: 'undoRequest' })));
+        redoBtn.addEventListener('click', () => ws.send(JSON.stringify({ type: 'redoRequest' })));
+        newGameBtn.addEventListener('click', () => {
+            if (confirm('Are you sure you want to start a new game? This will disconnect you from the current one.')) {
+                ws.send(JSON.stringify({ type: 'newGameRequest' }));
+                window.location.reload();
+            }
+        });
+
+        // Initialize
+        createBoard();
+        connect();
+    </script>
+</body>
+</html>
