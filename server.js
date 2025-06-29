@@ -98,7 +98,6 @@ class Check10Game {
         return true;
     }
     
-    // *** THIS IS THE MAIN SERVER-SIDE FIX ***
     handlePromotionChoice(row, col) {
         if (this.gameState !== 'choosing_promotion') return false;
         
@@ -110,10 +109,8 @@ class Check10Game {
 
         const promotingPlayer = this.currentPlayer;
         
-        // Remove the chosen piece
         this.board[row][col] = null;
         
-        // Award points
         const scoredPoints = this.promotionPoints;
         if (promotingPlayer === 'white') {
             this.whiteScore += scoredPoints;
@@ -121,16 +118,13 @@ class Check10Game {
             this.blackScore += scoredPoints;
         }
         
-        // Reset game state
         this.gameState = 'playing';
         this.promotionChoices = null;
         this.promotionPoints = 0;
         this.lastMessage = `${promotingPlayer} promoted and scored ${scoredPoints} points!`;
         
-        // Switch turn to the other player
         this.currentPlayer = (promotingPlayer === 'white' ? 'black' : 'white');
         
-        // Finalize the turn
         this.checkGameEnd();
         this.saveGameState();
         return true;
@@ -145,24 +139,18 @@ class Check10Game {
     processCombinations(combinations) { let points = 0; const piecesToRemove = new Set(); for (const combo of combinations) { for (const pos of combo) { if (pos.piece.color !== this.currentPlayer && !pos.piece.promoted) { piecesToRemove.add(`${pos.row},${pos.col}`); } } } for (const key of piecesToRemove) { const [row, col] = key.split(',').map(Number); if (this.board[row][col]) { points += this.board[row][col].number; this.board[row][col] = null; } } return points; }
     calculatePromotedPieceValues() { let whitePromotedValue = 0, blackPromotedValue = 0; for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { const piece = this.board[row][col]; if (piece && piece.promoted) { if (piece.color === 'white') whitePromotedValue += piece.number; else blackPromotedValue += piece.number; } } } return { whitePromotedValue, blackPromotedValue }; }
     hasValidMoves(player) { for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { if (this.board[row][col] && this.board[row][col].color === player) { if (this.getValidMoves(row, col).length > 0) return true; } } } return false; }
-    checkGameEnd() { if (!this.hasValidMoves(this.currentPlayer)) { this.gameOver = true; const promotedValues = this.calculatePromotedPieceValues(); const finalWhiteScore = this.whiteScore + promotedValues.whitePromotedValue; const finalBlackScore = this.blackScore + promotedValues.blackPromotedValue; const winner = finalWhiteScore > finalBlackScore ? 'White' : finalBlackScore > finalWhiteScore ? 'Black' : 'Tie'; if (winner === 'Tie') { this.lastMessage = `Game Over! It's a tie! Both scored ${finalWhiteScore}.`; } else { const winnerScore = winner === 'White' ? finalWhiteScore : finalBlackScore; const loserScore = winner === 'White' ? finalBlackScore : finalWhiteScore; this.lastMessage = `Game Over! ${winner} wins ${winnerScore} to ${loserScore}.`; } this.whiteScore = finalWhiteScore; this.blackScore = finalBlackScore; this.updateScores(); return true; } return false; }
+    checkGameEnd() { if (!this.hasValidMoves(this.currentPlayer)) { this.gameOver = true; const promotedValues = this.calculatePromotedPieceValues(); const finalWhiteScore = this.whiteScore + promotedValues.whitePromotedValue; const finalBlackScore = this.blackScore + promotedValues.blackPromotedValue; const winner = finalWhiteScore > finalBlackScore ? 'White' : finalBlackScore > finalWhiteScore ? 'Black' : 'Tie'; if (winner === 'Tie') { this.lastMessage = `Game Over! It's a tie! Both scored ${finalWhiteScore}.`; } else { const winnerScore = winner === 'White' ? finalWhiteScore : finalBlackScore; const loserScore = winner === 'White' ? finalBlackScore : finalWhiteScore; this.lastMessage = `Game Over! ${winner} wins ${winnerScore} to ${loserScore}.`; } this.whiteScore = finalWhiteScore; this.blackScore = finalBlackScore; return true; } return false; }
     saveGameState() { const gameState = { board: this.board.map(row => row.map(p => p ? { ...p } : null)), currentPlayer: this.currentPlayer, whiteScore: this.whiteScore, blackScore: this.blackScore, gameOver: this.gameOver, gameState: this.gameState, promotionChoices: this.promotionChoices, lastMessage: this.lastMessage }; this.gameHistory = this.gameHistory.slice(0, this.historyIndex + 1); this.gameHistory.push(gameState); this.historyIndex++; if (this.gameHistory.length > this.maxHistorySize) { this.gameHistory.shift(); this.historyIndex--; } }
     restoreGameState(gameState) { this.board = gameState.board.map(row => row.map(p => p ? { ...p } : null)); this.currentPlayer = gameState.currentPlayer; this.whiteScore = gameState.whiteScore; this.blackScore = gameState.blackScore; this.gameOver = gameState.gameOver; this.gameState = 'playing'; this.promotionChoices = null; this.promotionPoints = 0; this.lastMessage = gameState.lastMessage; }
     canUndo() { return this.historyIndex > 0; }
     canRedo() { return this.historyIndex < this.gameHistory.length - 1; }
     undo() { if (this.canUndo()) { this.historyIndex--; this.restoreGameState(this.gameHistory[this.historyIndex]); this.lastMessage = "Move undone."; } }
     redo() { if (this.canRedo()) { this.historyIndex++; this.restoreGameState(this.gameHistory[this.historyIndex]); this.lastMessage = "Move redone."; } }
-    updateScores() { /* Only relevant on client */ }
 }
 
-
-// --- HTTP Server and WebSocket Server (No changes here) ---
-
+// --- Smart HTTP Server and WebSocket Server ---
 const server = http.createServer((req, res) => {
-    // Determine the file path from the request URL
     let filePath = path.join(__dirname, 'public', req.url === '/' ? 'index.html' : req.url);
-
-    // Determine the content type based on the file extension
     const extname = String(path.extname(filePath)).toLowerCase();
     const mimeTypes = {
         '.html': 'text/html',
@@ -173,26 +161,22 @@ const server = http.createServer((req, res) => {
         '.jpg': 'image/jpeg'
     };
     const contentType = mimeTypes[extname] || 'application/octet-stream';
-
-    // Read the file and serve it
     fs.readFile(filePath, (error, content) => {
         if (error) {
-            // If the file is not found, return a 404 error
             if (error.code == 'ENOENT') {
                 res.writeHead(404, { 'Content-Type': 'text/html' });
                 res.end('<h1>404 Not Found</h1>', 'utf-8');
             } else {
-                // For other server errors, return a 500 error
                 res.writeHead(500);
                 res.end('Sorry, check with the site admin for error: ' + error.code + ' ..\n');
             }
         } else {
-            // If the file is found, serve it with the correct content type
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(content, 'utf-8');
         }
     });
 });
+
 const wss = new WebSocket.Server({ server });
 let rooms = {}; let waitingPlayer = null; let nextRoomId = 1;
 
@@ -203,17 +187,52 @@ wss.on('connection', ws => {
         room.playerWhite.send(JSON.stringify({ type: 'gameStart', playerColor: 'white', gameState: initialGameState }));
         room.playerBlack.send(JSON.stringify({ type: 'gameStart', playerColor: 'black', gameState: initialGameState }));
     } else {
-        roomId = nextRoomId++; playerColor = 'white'; ws.playerColor = 'white'; ws.roomId = roomId; const game = new Check10Game(); rooms[roomId] = { game: game, playerWhite: ws, playerBlack: null }; waitingPlayer = ws; console.log(`Player White created room ${roomId}. Waiting for opponent.`);
+        roomId = nextRoomId++; playerColor = 'white'; ws.playerColor = 'white'; ws.roomId = roomId; const game = new Check10Game();
+        rooms[roomId] = { game: game, playerWhite: ws, playerBlack: null, playAgain: new Set() };
+        waitingPlayer = ws; console.log(`Player White created room ${roomId}. Waiting for opponent.`);
         ws.send(JSON.stringify({ type: 'waiting' }));
     }
     ws.on('message', message => {
         const data = JSON.parse(message); const room = rooms[ws.roomId]; if (!room) return; const game = room.game; let lastMove = null;
-        if (data.type !== 'newGameRequest' && game.currentPlayer !== ws.playerColor && game.gameState !== 'choosing_promotion') { return; }
+        if (data.type !== 'newGameRequest' && data.type !== 'resign' && data.type !== 'chat' && data.type !== 'playAgainRequest' && game.currentPlayer !== ws.playerColor && game.gameState !== 'choosing_promotion') { return; }
         switch (data.type) {
             case 'move': if (game.makeMove(data.from.row, data.from.col, data.to.row, data.to.col)) { lastMove = { from: data.from, to: data.to }; } break;
             case 'promotionChoice': if (game.handlePromotionChoice(data.pos.row, data.pos.col)) { lastMove = { from: data.pos, to: null }; } break;
+            case 'chat':
+                const opponent = ws.playerColor === 'white' ? room.playerBlack : room.playerWhite;
+                if (opponent && opponent.readyState === WebSocket.OPEN) {
+                    opponent.send(JSON.stringify({ type: 'chat', message: data.message }));
+                }
+                return;
             case 'undoRequest': game.undo(); break;
             case 'redoRequest': game.redo(); break;
+            case 'resign':
+                const opponentColor = ws.playerColor === 'white' ? 'Black' : 'White';
+                game.gameOver = true;
+                game.lastMessage = `${ws.playerColor.charAt(0).toUpperCase() + ws.playerColor.slice(1)} resigned. ${opponentColor} wins.`;
+                break;
+            case 'playAgainRequest':
+                if (!room || !room.game.gameOver) return;
+                room.playAgain.add(ws.playerColor);
+                if (room.playAgain.size === 2) {
+                    console.log(`Room ${roomId}: Both players ready for a rematch. Swapping colors.`);
+                    const oldWhite = room.playerWhite;
+                    room.playerWhite = room.playerBlack;
+                    room.playerBlack = oldWhite;
+                    room.playerWhite.playerColor = 'white';
+                    room.playerBlack.playerColor = 'black';
+                    room.game = new Check10Game();
+                    room.playAgain.clear();
+                    const initialGameState = room.game.gameHistory[room.game.historyIndex];
+                    room.playerWhite.send(JSON.stringify({ type: 'gameStart', playerColor: 'white', gameState: initialGameState }));
+                    room.playerBlack.send(JSON.stringify({ type: 'gameStart', playerColor: 'black', gameState: initialGameState }));
+                } else {
+                    const opponent = ws.playerColor === 'white' ? room.playerBlack : room.playerWhite;
+                    if (opponent && opponent.readyState === WebSocket.OPEN) {
+                        opponent.send(JSON.stringify({ type: 'opponentWantsRematch' }));
+                    }
+                }
+                return;
             case 'newGameRequest': if (room.playerWhite) room.playerWhite.close(); if (room.playerBlack) room.playerBlack.close(); return;
         }
         broadcastGameState(ws.roomId, lastMove);

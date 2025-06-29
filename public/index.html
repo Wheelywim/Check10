@@ -75,8 +75,56 @@
           }
         }
         .piece-captured {
-          /* SLOWER: flash twice over 0.8s, then fade out over 0.8s */
           animation: flash 0.4s 2, fadeOut 0.8s 0.8s forwards;
+        }
+
+        .chat-container {
+            margin-top: 20px;
+            border: 1px solid #D2B48C;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 10px;
+        }
+        #chatMessages {
+            height: 120px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .chat-message {
+            padding: 6px 10px;
+            border-radius: 12px;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .my-message {
+            background-color: #8B4513;
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .opponent-message {
+            background-color: #e0e0e0;
+            color: #333;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+        }
+        #chatForm {
+            display: flex;
+            gap: 10px;
+        }
+        #chatInput {
+            flex-grow: 1;
+            border: 1px solid #D2B48C;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 14px;
+        }
+        #chatInput:focus {
+            outline: none;
+            border-color: #8B4513;
         }
 
         @media (max-width: 950px) { .main-content { flex-direction: column; } .info-panel { width: 100%; max-width: 524px; margin-top: 20px; } }
@@ -104,7 +152,16 @@
                     <button class="btn btn-primary" onclick="requestUndo()" id="undoBtn" disabled>↶ Undo</button>
                     <button class="btn btn-primary" onclick="requestRedo()" id="redoBtn" disabled>↷ Redo</button>
                     <button class="btn btn-primary" onclick="resignGame()" id="resignBtn">Resign</button>
-                    <button class="btn btn-primary" onclick="newGame()">New Game</button>
+                    <button class="btn btn-primary" id="newGameBtn" onclick="newGame()">New Game</button>
+                    <button class="btn btn-primary" id="playAgainBtn" style="display: none;">Play Again</button>
+                </div>
+
+                <div class="chat-container">
+                    <div id="chatMessages"></div>
+                    <form id="chatForm">
+                        <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
+                        <button type="submit" class="btn btn-primary">Send</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -115,7 +172,12 @@
         let myColor = null; let currentGameState = {}; let previousGameState = null; let selectedPosition = null; let isAnimating = false;
         const boardElement = document.getElementById('gameBoard'); const boardWrapper = document.getElementById('boardWrapper'); const messageElement = document.getElementById('gameMessage'); const turnElement = document.getElementById('currentTurn'); const whiteScoreElement = document.getElementById('whiteScore'); const blackScoreElement = document.getElementById('blackScore'); const undoBtn = document.getElementById('undoBtn'); const redoBtn = document.getElementById('redoBtn');
         const resignBtn = document.getElementById('resignBtn');
-        const wooshSound = new Audio('/whoosh.mp3');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const playAgainBtn = document.getElementById('playAgainBtn');
+        const chatForm = document.getElementById('chatForm');
+        const chatInput = document.getElementById('chatInput');
+        const chatMessages = document.getElementById('chatMessages');
+        const wooshSound = new Audio('/woosh.mp3');
         
         socket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
@@ -130,7 +192,15 @@
                     document.getElementById('waitingScreen').style.display = 'none'; 
                     document.querySelector('.game-container').style.display = 'block'; 
                     currentGameState = data.gameState; 
-                    await renderGame(currentGameState); 
+                    await renderGame(currentGameState);
+
+                    // Reset UI for a new game or rematch
+                    playAgainBtn.style.display = 'none';
+                    playAgainBtn.disabled = false;
+                    playAgainBtn.textContent = 'Play Again';
+                    resignBtn.style.display = 'inline-block';
+                    newGameBtn.style.display = 'inline-block';
+                    chatInput.disabled = false;
                     break;
                 case 'gameStateUpdate':
                     if (currentGameState.gameOver) {
@@ -185,6 +255,12 @@
                     currentGameState = newGameState;
                     await renderGame(currentGameState);
                     break;
+                case 'chat':
+                    displayChatMessage(data.message, 'opponent');
+                    break;
+                case 'opponentWantsRematch':
+                    messageElement.textContent = "Your opponent wants a rematch!";
+                    break;
                 case 'opponentDisconnect': 
                     messageElement.textContent = "Your opponent has disconnected. Click 'New Game' to play again."; 
                     turnElement.textContent = "Game Over"; 
@@ -194,6 +270,15 @@
             }
             previousGameState = JSON.parse(JSON.stringify(currentGameState));
         };
+
+        function displayChatMessage(message, sender) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('chat-message');
+            messageElement.classList.add(sender === 'me' ? 'my-message' : 'opponent-message');
+            messageElement.textContent = message;
+            chatMessages.appendChild(messageElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
 
         function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
         
@@ -215,9 +300,12 @@
                         turnElement.textContent = "Game Over";
                         turnElement.className = "current-turn";
                         boardElement.style.pointerEvents = 'none';
-                        resignBtn.disabled = true;
+                        resignBtn.style.display = 'none';
+                        newGameBtn.style.display = 'none';
                         undoBtn.disabled = true;
                         redoBtn.disabled = true;
+                        playAgainBtn.style.display = 'inline-block';
+                        chatInput.disabled = true;
                     } else {
                         const isMyTurn = state.currentPlayer === myColor;
                         turnElement.textContent = `${state.currentPlayer === 'white' ? 'White' : 'Black'} Player's Turn`;
@@ -241,24 +329,18 @@
                 const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`);
                 const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`);
                 const pieceEl = fromSquare?.querySelector('.piece');
-
                 if (!pieceEl || !toSquare) return resolve();
-
                 const fromRect = fromSquare.getBoundingClientRect();
                 const toRect = toSquare.getBoundingClientRect();
                 let deltaX = toRect.left - fromRect.left;
                 let deltaY = toRect.top - fromRect.top;
-
                 if (myColor === 'black') {
                     deltaX = -deltaX;
                     deltaY = -deltaY;
                 }
-
                 pieceEl.style.zIndex = '1000';
                 pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`;
                 pieceEl.addEventListener('transitionend', () => {
-                    // FIX: Do not reset the style here. The element will be replaced
-                    // by the final renderGame call, and resetting the style causes a flicker.
                     resolve();
                 }, { once: true });
             });
@@ -271,7 +353,6 @@
                     wooshSound.play().catch(error => console.log("Audio play failed:", error));
                 }, soundDelay);
             }
-
             const animationPromises = capturedPieces.map(pos => {
                 return new Promise(resolve => {
                     const square = boardElement.querySelector(`[data-row='${pos.row}'][data-col='${pos.col}']`);
@@ -281,10 +362,7 @@
                         return;
                     }
                     pieceEl.classList.add('piece-captured');
-                    // We need to specifically wait for the 'fadeOut' animation to end.
-                    // The 'animationend' event fires after each animation in a sequence.
                     pieceEl.addEventListener('animationend', (event) => {
-                        // Only resolve the promise when the final animation ('fadeOut') is complete.
                         if (event.animationName === 'fadeOut') {
                             resolve();
                         }
@@ -307,6 +385,22 @@
                 for (const dC of [-1, 1]) { const newCol = col + dC; if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) validMoves.push({ row: newRow, col: newCol }); }
                 renderGame(currentGameState); highlightValidMoves(validMoves);
             } else if (selectedPosition) { socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]); }
+        });
+
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault(); 
+            const message = chatInput.value;
+            if (message.trim()) {
+                socket.send(JSON.stringify({ type: 'chat', message: message }));
+                displayChatMessage(message, 'me');
+                chatInput.value = '';
+            }
+        });
+
+        playAgainBtn.addEventListener('click', () => {
+            socket.send(JSON.stringify({ type: 'playAgainRequest' }));
+            playAgainBtn.textContent = 'Waiting for Opponent...';
+            playAgainBtn.disabled = true;
         });
 
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
