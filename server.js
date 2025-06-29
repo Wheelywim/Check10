@@ -48,7 +48,7 @@ wss.on('connection', ws => {
         const data = JSON.parse(message);
         
         if (data.type === 'setNickname') {
-            ws.nickname = data.name.trim() || 'Anonymous';
+            ws.nickname = data.name.trim() || 'Anonymous'; // Set default if name is empty
             if (waitingPlayer) {
                 const roomId = nextRoomId++;
                 const room = { game: new Check10Game(), playerWhite: waitingPlayer, playerBlack: ws, playAgain: new Set() };
@@ -81,7 +81,7 @@ wss.on('connection', ws => {
             case 'undoRequest': game.undo(); break;
             case 'redoRequest': game.redo(); break;
             case 'resign':
-                const winnerNick = (ws.playerColor === 'white' ? room.playerBlack : room.playerWhite).nickname;
+                const winnerNick = (ws.playerColor === 'white' ? room.playerBlack.nickname : room.playerWhite.nickname);
                 game.gameOver = true;
                 game.lastMessage = `${ws.nickname} resigned. ${winnerNick} wins.`;
                 break;

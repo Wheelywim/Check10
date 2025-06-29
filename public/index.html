@@ -9,17 +9,20 @@
         body { font-family: 'Segoe UI', 'Arial', sans-serif; background: #2E2822; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(46, 40, 34, 0.95); color: #F4E9DB; display: flex; justify-content: center; align-items: center; text-align: center; z-index: 2000; flex-direction: column; }
         #nicknameScreen { display: flex; }
-        #waitingScreen { display: none; }
-        .overlay-box { background: #F4E9DB; color: #2E2822; padding: 30px 40px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        .overlay-box h2 { margin-bottom: 20px; color: #654321; }
-        #nicknameInput { width: 100%; padding: 12px; font-size: 1.1em; border-radius: 8px; border: 2px solid #D2B48C; margin-bottom: 20px; }
+        #waitingScreen, #rulesScreen { display: none; }
+        .overlay-box { background: #F4E9DB; color: #2E2822; padding: 30px 40px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); text-align: left; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+        .overlay-box h2 { margin-bottom: 20px; color: #654321; text-align: center; }
+        #nicknameInput { width: 100%; padding: 12px; font-size: 1.1em; border-radius: 8px; border: 2px solid #D2B48C; margin-bottom: 20px; text-align: center; }
         .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #8B4513; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .game-container { position: relative; background: #F4E9DB; border-radius: 15px; padding: 25px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); max-width: 1100px; width: 100%; display: none; }
         .game-header { text-align: center; margin-bottom: 20px; }
         .game-title { font-size: 2.8em; font-weight: bold; color: #654321; margin-bottom: 5px; }
-        .game-subtitle { color: #8B4513; font-size: 1.1em; }
-        .main-content { display: flex; justify-content: center; align-items: center; gap: 30px; }
+        .game-subtitle { color: #8B4513; font-size: 1.1em; height: 1.2em; }
+        .top-controls { position: absolute; top: 10px; right: 15px; display: flex; gap: 10px; align-items: center; }
+        .lang-btn, #rulesBtn { background: none; border: 1px solid #D2B48C; color: #8B4513; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .lang-btn.active, #rulesBtn:hover { background: #8B4513; color: white; }
+        .main-content { display: flex; justify-content: center; align-items: flex-start; gap: 30px; }
         .current-turn { margin-bottom: 15px; text-align: center; font-size: 1.3em; font-weight: bold; padding: 10px 20px; border-radius: 8px; transition: all 0.3s ease; border: 2px solid transparent; }
         .white-turn { background: #F0D9B5; color: #654321; border-color: #D2B48C; }
         .black-turn { background: #B58863; color: #FFFFFF; border-color: #8B4513; }
@@ -35,12 +38,7 @@
         .square { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease; position: relative; }
         .square.light { background: #F0D9B5; } .square.dark { background: #B58863; }
         .square.valid-move { box-shadow: inset 0 0 0 4px rgba(218, 165, 32, 0.8); }
-        
-        /* --- CHANGED: STYLES FOR LAST MOVE HIGHLIGHT --- */
-        .last-move-from, .last-move-to {
-            box-shadow: inset 0 0 0 4px rgba(255, 235, 59, 0.8) !important; /* A gold-colored border inside the square */
-        }
-
+        .last-move-from, .last-move-to { box-shadow: inset 0 0 0 4px rgba(255, 235, 59, 0.8) !important; }
         .piece { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); transition: transform 0.4s ease-in-out, opacity 0.3s ease; position: relative; }
         .piece:hover { transform: scale(1.1); }
         .piece.white { background: radial-gradient(circle, #ffffff 0%, #e0e0e0 100%); color: #333; border: 2px solid #ccc; }
@@ -50,7 +48,7 @@
         @keyframes fadeOut { from { transform: scale(1); opacity: 1; } to { transform: scale(0); opacity: 0; } }
         .piece-captured { animation: flash 0.4s 2, fadeOut 0.8s 0.8s forwards; }
         @keyframes flash { 0%, 100% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 10px rgba(255, 255, 255, 0); } 50% { box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 25px rgba(255, 0, 0, 0.8); } }
-        .info-panel { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 250px; }
+        .info-panel { flex-grow: 1; display: flex; flex-direction: column; justify-content: flex-start; min-width: 250px; }
         .message { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; }
         .message.info { background: rgba(139, 69, 19, 0.1); color: #654321; border: 1px solid #D2B48C; }
         .controls { display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap; }
@@ -72,31 +70,41 @@
         #chatForm { display: flex; gap: 10px; }
         #chatInput { flex-grow: 1; border: 1px solid #D2B48C; border-radius: 8px; padding: 8px; font-size: 14px; }
         #chatInput:focus { outline: none; border-color: #8B4513; }
-        .lang-selector { position: absolute; top: 10px; right: 15px; }
-        .lang-btn { background: none; border: 1px solid #D2B48C; color: #8B4513; padding: 4px 8px; cursor: pointer; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .lang-btn.active { background: #8B4513; color: white; }
+        #rulesText h3 { color: #654321; margin-top: 15px; margin-bottom: 5px; border-bottom: 1px solid #D2B48C; padding-bottom: 5px; }
+        #rulesText p { margin-bottom: 10px; line-height: 1.6; }
     </style>
 </head>
 <body>
     <div id="nicknameScreen" class="overlay">
-        <div class="overlay-box">
-            <h2 id="nicknameTitle">Voer uw bijnaam in</h2>
+        <div class="overlay-box" style="text-align: center;">
+            <h2 id="nicknameTitle"></h2>
             <form id="nicknameForm">
-                <input type="text" id="nicknameInput" placeholder="Bijnaam" maxlength="15">
-                <button type="submit" id="playBtn" class="btn btn-primary">Spelen</button>
+                <input type="text" id="nicknameInput" maxlength="15">
+                <button type="submit" id="playBtn" class="btn btn-primary"></button>
             </form>
         </div>
     </div>
 
     <div id="waitingScreen" class="overlay">
         <div class="spinner"></div>
-        <p>Wachten op een tegenstander...</p>
+        <p></p>
+    </div>
+
+    <div id="rulesScreen" class="overlay">
+        <div class="overlay-box">
+            <h2 id="rulesTitle"></h2>
+            <div id="rulesText"></div>
+            <button id="closeRulesBtn" class="btn btn-primary" style="margin-top: 20px;"></button>
+        </div>
     </div>
 
     <div class="game-container">
-        <div class="lang-selector">
-            <button id="lang-nl" class="lang-btn">NL</button>
-            <button id="lang-en" class="lang-btn">EN</button>
+        <div class="top-controls">
+            <div class="lang-selector">
+                <button id="lang-nl" class="lang-btn">NL</button>
+                <button id="lang-en" class="lang-btn">EN</button>
+            </div>
+            <button id="rulesBtn"></button>
         </div>
         <div class="game-header">
             <h1 class="game-title">CHECK 10</h1>
@@ -134,8 +142,8 @@
     </div>
     <script>
         const translations = {
-            en: { "nickname_title": "Enter Your Nickname", "nickname_placeholder": "Nickname", "play": "Play", "waiting_for_opponent": "Waiting for an opponent...", "vs": "vs.", "white_score": "White Score", "black_score": "Black Score", "player_turn": "{0}'s Turn", "game_over": "Game Over", "undo": "↶ Undo", "redo": "↷ Redo", "resign": "Resign", "new_game": "New Game", "play_again": "Play Again", "play_again_waiting": "Waiting for Opponent...", "send": "Send", "resign_confirm": "Are you sure you want to resign?", "new_game_confirm": "Are you sure you want to start a new game? This will disconnect you from the current match.", "chat_placeholder": "Type a message...", "opponent_disconnected": "Your opponent has disconnected. Click 'New Game' to play again.", "opponent_wants_rematch": "Your opponent wants a rematch!", "start_game": "{0} starts!", "player_moved": "{0} moved.", "player_scored": "{0} scored {1} points!", "game_over_win": "Game Over! {0} wins {1} to {2}.", "game_over_tie": "Game Over! It's a tie! Both scored {0}.", "you_resigned": "You resigned. {0} wins.", "opponent_resigned": "{0} resigned. {1} wins.", "undo_message": "Move undone.", "redo_message": "Move redone.", "promotion_choice": "Promotion! Choose which opponent piece to remove.", "promotion_choice_success": "{0} promoted and scored {1} points!", "invalid_promotion_choice": "Please click on one of the highlighted pieces." },
-            nl: { "nickname_title": "Voer uw bijnaam in", "nickname_placeholder": "Bijnaam", "play": "Spelen", "waiting_for_opponent": "Wachten op een tegenstander...", "vs": "vs.", "white_score": "Witte Score", "black_score": "Zwarte Score", "player_turn": "{0} is aan zet", "game_over": "Spel Voorbij", "undo": "↶ Ongedaan maken", "redo": "↷ Opnieuw", "resign": "Opgeven", "new_game": "Nieuw Spel", "play_again": "Opnieuw Spelen", "play_again_waiting": "Wachten op Tegenstander...", "send": "Verstuur", "resign_confirm": "Weet u zeker dat u wilt opgeven?", "new_game_confirm": "Weet u zeker dat u een nieuw spel wilt starten? De huidige wedstrijd wordt dan verbroken.", "chat_placeholder": "Typ een bericht...", "opponent_disconnected": "Uw tegenstander heeft de verbinding verbroken. Klik op 'Nieuw Spel' om opnieuw te spelen.", "opponent_wants_rematch": "Uw tegenstander wil een herkansing!", "start_game": "{0} begint!", "player_moved": "{0} heeft een zet gedaan.", "player_scored": "{0} scoorde {1} punten!", "game_over_win": "Spel Voorbij! {0} wint met {1} tegen {2}.", "game_over_tie": "Spel Voorbij! Gelijkspel! Beide spelers scoorden {0}.", "you_resigned": "U heeft opgegeven. {0} wint.", "opponent_resigned": "{0} heeft opgegeven. {1} wint.", "undo_message": "Zet ongedaan gemaakt.", "redo_message": "Zet opnieuw uitgevoerd.", "promotion_choice": "Promotie! Kies welk stuk van de tegenstander u wilt verwijderen.", "promotion_choice_success": "{0} promoveerde en scoorde {1} punten!", "invalid_promotion_choice": "Klik alstublieft op een van de gemarkeerde stukken." }
+            en: { "rules_title": "Game Rules", "rules_button": "Rules", "close_button": "Close", "game_rules": `<h3>Objective</h3><p>To score more points than your opponent by capturing their pieces.</p><h3>Movement</h3><p>Pieces only move one square forward towards the opponent's side. They can move one square straight forward or one square diagonally forward, but only to an empty square.</p><h3>Scoring - Making "Check 10"</h3><p>After you move a piece, the game checks all connected groups of pieces around where your piece landed. If any group (containing at least one white and one black piece) has numbers that sum to exactly 10, you capture all of your opponent's pieces within that group that are not promoted. Their values are added to your score.</p><h3>Scoring - Promotion</h3><p>When one of your pieces reaches the opponent's back row, it is promoted. You then capture one of your opponent's non-promoted pieces that has the same number as your promoted piece. The value is added to your score.</p><h3>End of Game</h3><p>The game ends when it is your turn, but you have no legal moves. The value of all remaining promoted pieces is added to their owner's score. The player with the highest final score wins.</p>`, "nickname_title": "Enter Your Nickname", "nickname_placeholder": "Nickname", "play": "Play", "waiting_for_opponent": "Waiting for an opponent...", "vs": "vs.", "white_score": "White Score", "black_score": "Black Score", "player_turn": "{0}'s Turn", "game_over": "Game Over", "undo": "↶ Undo", "redo": "↷ Redo", "resign": "Resign", "new_game": "New Game", "play_again": "Play Again", "play_again_waiting": "Waiting for Opponent...", "send": "Send", "resign_confirm": "Are you sure you want to resign?", "new_game_confirm": "Are you sure you want to start a new game? This will disconnect you from the current match.", "chat_placeholder": "Type a message...", "opponent_disconnected": "Your opponent has disconnected. Click 'New Game' to play again.", "opponent_wants_rematch": "Your opponent wants a rematch!", "start_game": "{0} starts!", "player_moved": "{0} moved.", "player_scored": "{0} scored {1} points!", "game_over_win": "Game Over! {0} wins {1} to {2}.", "game_over_tie": "Game Over! It's a tie! Both scored {0}.", "you_resigned": "You resigned. {0} wins.", "opponent_resigned": "{0} resigned. {1} wins.", "undo_message": "Move undone.", "redo_message": "Move redone.", "promotion_choice": "Promotion! Choose which opponent piece to remove.", "promotion_choice_success": "{0} promoted and scored {1} points!", "invalid_promotion_choice": "Please click on one of the highlighted pieces." },
+            nl: { "rules_title": "Spelregels", "rules_button": "Spelregels", "close_button": "Sluiten", "game_rules": `<h3>Doel van het spel</h3><p>Meer punten scoren dan je tegenstander door zijn of haar stukken te slaan.</p><h3>Beweging</h3><p>Stukken bewegen slechts één vak vooruit richting de kant van de tegenstander. Ze kunnen één vak recht vooruit of één vak diagonaal vooruit bewegen, maar alleen naar een leeg veld.</p><h3>Scoren - "Check 10" maken</h3><p>Nadat je een stuk hebt verplaatst, controleert het spel alle aaneengesloten groepen stukken rondom de nieuwe positie. Als een groep (met ten minste één wit en één zwart stuk) getallen heeft die opgeteld precies 10 zijn, sla je alle stukken van je tegenstander binnen die groep die niet gepromoveerd zijn. Hun waarden worden bij je score opgeteld.</p><h3>Scoren - Promotie</h3><p>Wanneer een van je stukken de achterste rij van de tegenstander bereikt, promoveert het. Je slaat dan een van de niet-gepromoveerde stukken van de tegenstander met hetzelfde nummer als je gepromoveerde stuk. De waarde wordt bij je score opgeteld.</p><h3>Einde van het Spel</h3><p>Het spel eindigt wanneer een speler geen legale zetten meer kan doen als hij aan de beurt is. De waarden van alle overgebleven gepromoveerde stukken worden bij de score van hun eigenaar opgeteld. De speler met de hoogste eindscore wint.</p>`, "nickname_title": "Voer uw bijnaam in", "nickname_placeholder": "Bijnaam", "play": "Spelen", "waiting_for_opponent": "Wachten op een tegenstander...", "vs": "vs.", "white_score": "Witte Score", "black_score": "Zwarte Score", "player_turn": "{0} is aan zet", "game_over": "Spel Voorbij", "undo": "↶ Ongedaan maken", "redo": "↷ Opnieuw", "resign": "Opgeven", "new_game": "Nieuw Spel", "play_again": "Opnieuw Spelen", "play_again_waiting": "Wachten op Tegenstander...", "send": "Verstuur", "resign_confirm": "Weet u zeker dat u wilt opgeven?", "new_game_confirm": "Weet u zeker dat u een nieuw spel wilt starten? De huidige wedstrijd wordt dan verbroken.", "chat_placeholder": "Typ een bericht...", "opponent_disconnected": "Uw tegenstander heeft de verbinding verbroken. Klik op 'Nieuw Spel' om opnieuw te spelen.", "opponent_wants_rematch": "Uw tegenstander wil een herkansing!", "start_game": "{0} begint!", "player_moved": "{0} heeft een zet gedaan.", "player_scored": "{0} scoorde {1} punten!", "game_over_win": "Spel Voorbij! {0} wint met {1} tegen {2}.", "game_over_tie": "Spel Voorbij! Gelijkspel! Beide spelers scoorden {0}.", "you_resigned": "U heeft opgegeven. {0} wint.", "opponent_resigned": "{0} heeft opgegeven. {1} wint.", "undo_message": "Zet ongedaan gemaakt.", "redo_message": "Zet opnieuw uitgevoerd.", "promotion_choice": "Promotie! Kies welk stuk van de tegenstander u wilt verwijderen.", "promotion_choice_success": "{0} promoveerde en scoorde {1} punten!", "invalid_promotion_choice": "Klik alstublieft op een van de gemarkeerde stukken." }
         };
         let currentLanguage = 'nl';
         let myColor = null, myNickname = '', opponentNickname = '';
@@ -144,35 +152,43 @@
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const socket = new WebSocket(`${protocol}//${window.location.host}`);
         
-        const nicknameScreen = document.getElementById('nicknameScreen');
-        const nicknameForm = document.getElementById('nicknameForm');
-        const nicknameInput = document.getElementById('nicknameInput');
-        const nicknameTitle = document.getElementById('nicknameTitle');
-        const playBtn = document.getElementById('playBtn');
-        const waitingScreen = document.getElementById('waitingScreen');
-        const waitingScreenText = document.querySelector('#waitingScreen p');
-        const gameContainer = document.querySelector('.game-container');
-        const boardElement = document.getElementById('gameBoard');
-        const boardWrapper = document.getElementById('boardWrapper');
-        const playerInfo = document.getElementById('playerInfo');
-        const turnElement = document.getElementById('currentTurn');
-        const whiteScoreLabel = document.getElementById('whiteScoreLabel');
-        const blackScoreLabel = document.getElementById('blackScoreLabel');
-        const whiteScoreElement = document.getElementById('whiteScore');
-        const blackScoreElement = document.getElementById('blackScore');
-        const messageElement = document.getElementById('gameMessage');
-        const undoBtn = document.getElementById('undoBtn');
-        const redoBtn = document.getElementById('redoBtn');
-        const resignBtn = document.getElementById('resignBtn');
-        const newGameBtn = document.getElementById('newGameBtn');
-        const playAgainBtn = document.getElementById('playAgainBtn');
-        const chatForm = document.getElementById('chatForm');
-        const chatInput = document.getElementById('chatInput');
-        const chatMessages = document.getElementById('chatMessages');
-        const sendBtn = document.getElementById('sendBtn');
-        const langNlBtn = document.getElementById('lang-nl');
-        const langEnBtn = document.getElementById('lang-en');
-        const wooshSound = new Audio('/woosh.mp3');
+        // --- Get All DOM Elements ---
+        const ui = {
+            nicknameScreen: document.getElementById('nicknameScreen'),
+            nicknameForm: document.getElementById('nicknameForm'),
+            nicknameInput: document.getElementById('nicknameInput'),
+            nicknameTitle: document.getElementById('nicknameTitle'),
+            playBtn: document.getElementById('playBtn'),
+            waitingScreen: document.getElementById('waitingScreen'),
+            waitingScreenText: document.querySelector('#waitingScreen p'),
+            gameContainer: document.querySelector('.game-container'),
+            boardElement: document.getElementById('gameBoard'),
+            boardWrapper: document.getElementById('boardWrapper'),
+            playerInfo: document.getElementById('playerInfo'),
+            turnElement: document.getElementById('currentTurn'),
+            whiteScoreLabel: document.getElementById('whiteScoreLabel'),
+            blackScoreLabel: document.getElementById('blackScoreLabel'),
+            whiteScoreElement: document.getElementById('whiteScore'),
+            blackScoreElement: document.getElementById('blackScore'),
+            messageElement: document.getElementById('gameMessage'),
+            undoBtn: document.getElementById('undoBtn'),
+            redoBtn: document.getElementById('redoBtn'),
+            resignBtn: document.getElementById('resignBtn'),
+            newGameBtn: document.getElementById('newGameBtn'),
+            playAgainBtn: document.getElementById('playAgainBtn'),
+            chatForm: document.getElementById('chatForm'),
+            chatInput: document.getElementById('chatInput'),
+            chatMessages: document.getElementById('chatMessages'),
+            sendBtn: document.getElementById('sendBtn'),
+            langNlBtn: document.getElementById('lang-nl'),
+            langEnBtn: document.getElementById('lang-en'),
+            rulesBtn: document.getElementById('rulesBtn'),
+            rulesScreen: document.getElementById('rulesScreen'),
+            rulesTitle: document.getElementById('rulesTitle'),
+            rulesText: document.getElementById('rulesText'),
+            closeRulesBtn: document.getElementById('closeRulesBtn'),
+            wooshSound: new Audio('/woosh.mp3')
+        };
 
         function getText(key, ...args) {
             let text = translations[currentLanguage][key] || key;
@@ -202,8 +218,8 @@
             if (match) return getText('player_scored', getDisplayName(match[1]), match[2]);
             match = englishMessage.match(/^(White|Black) moved \d+\.$/);
             if (match) return getText('player_moved', getDisplayName(match[1]));
-            match = englishMessage.match(/^(White|Black) resigned\. (White|Black) wins\.$/);
-            if (match) return getText('opponent_resigned', getDisplayName(match[1]), getDisplayName(match[2]));
+            match = englishMessage.match(/^(.*) resigned\. (.*) wins\.$/);
+            if (match) return getText('opponent_resigned', match[1], match[2]);
             match = englishMessage.match(/^(White|Black) promoted and scored (\d+) points!$/);
             if (match) return getText('promotion_choice_success', getDisplayName(match[1]), match[2]);
             
@@ -214,27 +230,33 @@
         }
         
         function updateAllUIText() {
-            nicknameTitle.textContent = getText('nickname_title');
-            nicknameInput.placeholder = getText('nickname_placeholder');
-            playBtn.textContent = getText('play');
-            waitingScreenText.textContent = getText('waiting_for_opponent');
+            ui.nicknameTitle.textContent = getText('nickname_title');
+            ui.nicknameInput.placeholder = getText('nickname_placeholder');
+            ui.playBtn.textContent = getText('play');
+            ui.waitingScreenText.textContent = getText('waiting_for_opponent');
+            ui.rulesBtn.textContent = getText('rules_button');
+            ui.rulesTitle.textContent = getText('rules_title');
+            ui.closeRulesBtn.textContent = getText('close_button');
+            ui.rulesText.innerHTML = getText('game_rules');
 
-            if (gameContainer.style.display === 'block') {
-                whiteScoreLabel.textContent = getText('white_score');
-                blackScoreLabel.textContent = getText('black_score');
-                undoBtn.textContent = getText('undo');
-                redoBtn.textContent = getText('redo');
-                resignBtn.textContent = getText('resign');
-                newGameBtn.textContent = getText('new_game');
-                playAgainBtn.textContent = playAgainBtn.disabled ? getText('play_again_waiting') : getText('play_again');
-                chatInput.placeholder = getText('chat_placeholder');
-                sendBtn.textContent = getText('send');
+            if (ui.gameContainer.style.display === 'block') {
+                ui.whiteScoreLabel.textContent = getText('white_score');
+                ui.blackScoreLabel.textContent = getText('black_score');
+                ui.undoBtn.textContent = getText('undo');
+                ui.redoBtn.textContent = getText('redo');
+                ui.resignBtn.textContent = getText('resign');
+                ui.newGameBtn.textContent = getText('new_game');
+                ui.playAgainBtn.textContent = ui.playAgainBtn.disabled ? getText('play_again_waiting') : getText('play_again');
+                ui.chatInput.placeholder = getText('chat_placeholder');
+                ui.sendBtn.textContent = getText('send');
                 if (currentGameState.nicknames) {
-                     const whitePlayerName = (myColor === 'white' ? myNickname : opponentNickname) || 'White';
-                     const blackPlayerName = (myColor === 'black' ? myNickname : opponentNickname) || 'Black';
+                     const whitePlayerName = myColor === 'white' ? myNickname : opponentNickname;
+                     const blackPlayerName = myColor === 'black' ? myNickname : opponentNickname;
+                     const whiteDisplayName = (whitePlayerName && whitePlayerName !== 'Anonymous') ? whitePlayerName : 'White';
+                     const blackDisplayName = (blackPlayerName && blackPlayerName !== 'Anonymous') ? blackPlayerName : 'Black';
                      const whiteColorText = getText('White');
                      const blackColorText = getText('Black');
-                     playerInfo.textContent = `${whitePlayerName} (${whiteColorText}) ${getText('vs')} ${blackPlayerName} (${blackColorText})`;
+                     ui.playerInfo.textContent = `${whiteDisplayName} (${whiteColorText}) ${getText('vs')} ${blackDisplayName} (${blackColorText})`;
                 }
                 if (currentGameState.board) renderGame(currentGameState, currentGameState.nicknames);
             }
@@ -242,28 +264,24 @@
 
         function setLanguage(lang) {
             currentLanguage = lang;
-            langNlBtn.classList.toggle('active', lang === 'nl');
-            langEnBtn.classList.toggle('active', lang === 'en');
+            ui.langNlBtn.classList.toggle('active', lang === 'nl');
+            ui.langEnBtn.classList.toggle('active', lang === 'en');
             updateAllUIText();
         }
 
-        langNlBtn.addEventListener('click', () => setLanguage('nl'));
-        langEnBtn.addEventListener('click', () => setLanguage('en'));
-
-        nicknameForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            myNickname = nicknameInput.value;
-            socket.send(JSON.stringify({ type: 'setNickname', name: myNickname }));
-            nicknameScreen.style.display = 'none';
-            waitingScreen.style.display = 'flex';
-        });
+        ui.langNlBtn.addEventListener('click', () => setLanguage('nl'));
+        ui.langEnBtn.addEventListener('click', () => setLanguage('en'));
+        ui.nicknameForm.addEventListener('submit', (e) => { e.preventDefault(); myNickname = ui.nicknameInput.value; socket.send(JSON.stringify({ type: 'setNickname', name: myNickname })); ui.nicknameScreen.style.display = 'none'; ui.waitingScreen.style.display = 'flex'; });
+        ui.rulesBtn.addEventListener('click', () => { ui.rulesScreen.style.display = 'flex'; });
+        ui.closeRulesBtn.addEventListener('click', () => { ui.rulesScreen.style.display = 'none'; });
+        ui.rulesScreen.addEventListener('click', (e) => { if (e.target === ui.rulesScreen) { ui.rulesScreen.style.display = 'none'; } });
 
         socket.onmessage = async (event) => {
             const data = JSON.parse(event.data);
             switch (data.type) {
                 case 'waiting':
-                    nicknameScreen.style.display = 'none';
-                    waitingScreen.style.display = 'flex';
+                    ui.nicknameScreen.style.display = 'none';
+                    ui.waitingScreen.style.display = 'flex';
                     break;
                 case 'gameStart': 
                     myColor = data.playerColor;
@@ -271,16 +289,13 @@
                     currentGameState.nicknames = data.nicknames;
                     myNickname = myColor === 'white' ? data.nicknames.white : data.nicknames.black;
                     opponentNickname = myColor === 'white' ? data.nicknames.black : data.nicknames.white;
-                    
-                    waitingScreen.style.display = 'none'; 
-                    gameContainer.style.display = 'block'; 
-                    
+                    ui.waitingScreen.style.display = 'none'; 
+                    ui.gameContainer.style.display = 'block'; 
                     updateAllUIText();
                     break;
                 case 'gameStateUpdate':
                     if (currentGameState.gameOver) { return; }
                     if (isAnimating) { setTimeout(() => socket.onmessage(event), 100); return; }
-
                     const newGameState = data.gameState;
                     const lastMove = data.lastMove;
                     newGameState.nicknames = data.nicknames;
@@ -302,31 +317,31 @@
 
                     document.querySelectorAll('.last-move-from, .last-move-to').forEach(s => s.classList.remove('last-move-from', 'last-move-to'));
                     if (data.lastMove && data.lastMove.from && data.lastMove.to) {
-                        const fromSquare = boardElement.querySelector(`[data-row='${data.lastMove.from.row}'][data-col='${data.lastMove.from.col}']`);
-                        const toSquare = boardElement.querySelector(`[data-row='${data.lastMove.to.row}'][data-col='${data.lastMove.to.col}']`);
+                        const fromSquare = ui.boardElement.querySelector(`[data-row='${data.lastMove.from.row}'][data-col='${data.lastMove.from.col}']`);
+                        const toSquare = ui.boardElement.querySelector(`[data-row='${data.lastMove.to.row}'][data-col='${data.lastMove.to.col}']`);
                         if (fromSquare) fromSquare.classList.add('last-move-from');
                         if (toSquare) toSquare.classList.add('last-move-to');
                     }
                     break;
                 case 'chat': displayChatMessage(`[${opponentNickname}] ${data.message}`, 'opponent'); break;
-                case 'opponentWantsRematch': messageElement.textContent = getText('opponent_wants_rematch'); break;
-                case 'opponentDisconnect': messageElement.textContent = getText('opponent_disconnected'); turnElement.textContent = getText('game_over'); turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; break;
+                case 'opponentWantsRematch': ui.messageElement.textContent = getText('opponent_wants_rematch'); break;
+                case 'opponentDisconnect': ui.messageElement.textContent = getText('opponent_disconnected'); ui.turnElement.textContent = getText('game_over'); ui.turnElement.className = "current-turn"; ui.boardElement.style.pointerEvents = 'none'; break;
             }
             if (data.type !== 'chat') {
                 previousGameState = JSON.parse(JSON.stringify(currentGameState));
             }
         };
 
-        function displayChatMessage(message, sender) { const messageElement = document.createElement('div'); messageElement.classList.add('chat-message'); messageElement.classList.add(sender === 'me' ? 'my-message' : 'opponent-message'); messageElement.textContent = message; chatMessages.appendChild(messageElement); chatMessages.scrollTop = chatMessages.scrollHeight; }
-        function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; document.getElementById('rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); document.getElementById('fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
-        function renderGame(state, nicknames, updateUI = true) { return new Promise(resolve => { const isFlipped = myColor === 'black'; boardWrapper.classList.toggle('flipped', isFlipped); renderCoordinates(isFlipped); const fragment = document.createDocumentFragment(); for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { const square = document.createElement('div'); const isLightSquare = (row + col) % 2 === 0; square.className = `square ${isLightSquare ? 'light' : 'dark'}`; square.dataset.row = row; square.dataset.col = col; const piece = state.board[row][col]; if (piece) { const pieceElement = document.createElement('div'); pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`; if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) { pieceElement.classList.add('selected'); } pieceElement.textContent = piece.number; square.appendChild(pieceElement); } fragment.appendChild(square); } } boardElement.innerHTML = ''; boardElement.appendChild(fragment); if (updateUI) { whiteScoreElement.textContent = state.whiteScore; blackScoreElement.textContent = state.blackScore; messageElement.textContent = translateServerMessage(state.lastMessage, nicknames); if (state.gameOver) { turnElement.textContent = getText('game_over'); turnElement.className = "current-turn"; boardElement.style.pointerEvents = 'none'; resignBtn.style.display = 'none'; newGameBtn.style.display = 'none'; undoBtn.disabled = true; redoBtn.disabled = true; playAgainBtn.style.display = 'inline-block'; chatInput.disabled = true; } else { const currentPlayerColor = state.currentPlayer; const nick = nicknames ? (currentPlayerColor === 'white' ? nicknames.white : nicknames.black) : (currentPlayerColor === 'white' ? 'White' : 'Black'); const displayName = (nick && nick !== 'Anonymous') ? nick : (currentPlayerColor === 'white' ? 'White' : 'Black'); turnElement.textContent = getText('player_turn', displayName); turnElement.className = `current-turn ${state.currentPlayer}-turn`; const isMyTurn = state.currentPlayer === myColor; boardElement.style.pointerEvents = isMyTurn ? 'auto' : 'none'; undoBtn.disabled = !state.canUndo; redoBtn.disabled = !state.canRedo; resignBtn.disabled = !isMyTurn; } } requestAnimationFrame(() => resolve()); }); }
-        function animateMove(from, to) { return new Promise(resolve => { if (!from || !to) { resolve(); return; } const fromSquare = boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const toSquare = boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`); const pieceEl = fromSquare?.querySelector('.piece'); if (!pieceEl || !toSquare) return resolve(); const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect(); let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top; if (myColor === 'black') { deltaX = -deltaX; deltaY = -deltaY; } pieceEl.style.zIndex = '1000'; pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`; pieceEl.addEventListener('transitionend', () => { resolve(); }, { once: true }); }); }
-        function animateCaptures(capturedPieces) { if (capturedPieces.length > 0) { const soundDelay = 800; setTimeout(() => { wooshSound.play().catch(error => console.log("Audio play failed:", error)); }, soundDelay); } const animationPromises = capturedPieces.map(pos => { return new Promise(resolve => { const square = boardElement.querySelector(`[data-row='${pos.row}'][data-col='${pos.col}']`); const pieceEl = square?.querySelector('.piece'); if (!pieceEl) { resolve(); return; } pieceEl.classList.add('piece-captured'); pieceEl.addEventListener('animationend', (event) => { if (event.animationName === 'fadeOut') { resolve(); } }); }); }); return Promise.all(animationPromises); }
-        function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
+        function displayChatMessage(message, sender) { const messageElement = document.createElement('div'); messageElement.classList.add('chat-message'); messageElement.classList.add(sender === 'me' ? 'my-message' : 'opponent-message'); messageElement.textContent = message; ui.chatMessages.appendChild(messageElement); ui.chatMessages.scrollTop = ui.chatMessages.scrollHeight; }
+        function renderCoordinates(isFlipped) { const ranks = isFlipped ? ['1', '2', '3', '4', '5', '6', '7', '8'] : ['8', '7', '6', '5', '4', '3', '2', '1']; const files = isFlipped ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']; ui.boardElement.querySelector('#rankLabels').innerHTML = ranks.map(r => `<div class="coordinate-label">${r}</div>`).join(''); ui.boardElement.querySelector('#fileLabels').innerHTML = files.map(f => `<div class="coordinate-label">${f}</div>`).join(''); }
+        function renderGame(state, nicknames, updateUI = true) { return new Promise(resolve => { const isFlipped = myColor === 'black'; ui.boardWrapper.classList.toggle('flipped', isFlipped); /*renderCoordinates(isFlipped);*/ const boardFrag = document.createDocumentFragment(); for (let row = 0; row < 8; row++) { for (let col = 0; col < 8; col++) { const square = document.createElement('div'); const isLightSquare = (row + col) % 2 === 0; square.className = `square ${isLightSquare ? 'light' : 'dark'}`; square.dataset.row = row; square.dataset.col = col; const piece = state.board[row][col]; if (piece) { const pieceElement = document.createElement('div'); pieceElement.className = `piece ${piece.color}${piece.promoted ? ' promoted' : ''}`; if (selectedPosition && selectedPosition.row === row && selectedPosition.col === col) { pieceElement.classList.add('selected'); } pieceElement.textContent = piece.number; square.appendChild(pieceElement); } boardFrag.appendChild(square); } } ui.boardElement.innerHTML = ''; ui.boardElement.appendChild(boardFrag); if (updateUI) { ui.whiteScoreElement.textContent = state.whiteScore; ui.blackScoreElement.textContent = state.blackScore; ui.messageElement.textContent = translateServerMessage(state.lastMessage, nicknames); if (state.gameOver) { ui.turnElement.textContent = getText('game_over'); ui.turnElement.className = "current-turn"; ui.boardElement.style.pointerEvents = 'none'; ui.resignBtn.style.display = 'none'; ui.newGameBtn.style.display = 'none'; ui.undoBtn.disabled = true; ui.redoBtn.disabled = true; ui.playAgainBtn.style.display = 'inline-block'; ui.chatInput.disabled = true; } else { const currentPlayerColor = state.currentPlayer; const nick = nicknames ? (currentPlayerColor === 'white' ? nicknames.white : nicknames.black) : (currentPlayerColor === 'white' ? 'White' : 'Black'); const displayName = (nick && nick !== 'Anonymous') ? nick : (currentPlayerColor === 'white' ? 'White' : 'Black'); ui.turnElement.textContent = getText('player_turn', displayName); ui.turnElement.className = `current-turn ${state.currentPlayer}-turn`; const isMyTurn = state.currentPlayer === myColor; ui.boardElement.style.pointerEvents = isMyTurn ? 'auto' : 'none'; ui.undoBtn.disabled = !state.canUndo; ui.redoBtn.disabled = !state.canRedo; ui.resignBtn.disabled = !isMyTurn; } } requestAnimationFrame(() => resolve()); }); }
+        function animateMove(from, to) { return new Promise(resolve => { if (!from || !to) { resolve(); return; } const fromSquare = ui.boardElement.querySelector(`[data-row='${from.row}'][data-col='${from.col}']`); const toSquare = ui.boardElement.querySelector(`[data-row='${to.row}'][data-col='${to.col}']`); const pieceEl = fromSquare?.querySelector('.piece'); if (!pieceEl || !toSquare) return resolve(); const fromRect = fromSquare.getBoundingClientRect(); const toRect = toSquare.getBoundingClientRect(); let deltaX = toRect.left - fromRect.left; let deltaY = toRect.top - fromRect.top; if (myColor === 'black') { deltaX = -deltaX; deltaY = -deltaY; } pieceEl.style.zIndex = '1000'; pieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)${myColor === 'black' ? ' rotate(180deg)' : ''}`; pieceEl.addEventListener('transitionend', () => { resolve(); }, { once: true }); }); }
+        function animateCaptures(capturedPieces) { if (capturedPieces.length > 0) { const soundDelay = 800; setTimeout(() => { ui.wooshSound.play().catch(error => console.log("Audio play failed:", error)); }, soundDelay); } const animationPromises = capturedPieces.map(pos => { return new Promise(resolve => { const square = ui.boardElement.querySelector(`[data-row='${pos.row}'][data-col='${pos.col}']`); const pieceEl = square?.querySelector('.piece'); if (!pieceEl) { resolve(); return; } pieceEl.classList.add('piece-captured'); pieceEl.addEventListener('animationend', (event) => { if (event.animationName === 'fadeOut') { resolve(); } }); }); }); return Promise.all(animationPromises); }
+        function highlightValidMoves(moves) { document.querySelectorAll('.square.valid-move').forEach(s => s.classList.remove('valid-move')); moves.forEach(move => { const square = ui.boardElement.querySelector(`[data-row='${move.row}'][data-col='${move.col}']`); if (square) square.classList.add('valid-move'); }); }
         const getClientSideValidMoves = (row, col) => { const moves = []; const piece = currentGameState.board[row][col]; if (!piece) return moves; const direction = piece.color === 'white' ? -1 : 1; const newRow = row + direction; if (newRow >= 0 && newRow < 8) { if (!currentGameState.board[newRow][col]) { moves.push({ row: newRow, col: col }); } for (const dC of [-1, 1]) { const newCol = col + dC; if (newCol >= 0 && newCol < 8 && !currentGameState.board[newRow][newCol]) { moves.push({ row: newRow, col: newCol }); } } } return moves; };
-        boardElement.addEventListener('click', (e) => { if (isAnimating || !currentGameState.board || currentGameState.gameOver) return; const target = e.target.closest('.square'); if (!target) return; const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col); if (currentGameState.gameState === 'choosing_promotion') { if (currentGameState.currentPlayer === myColor) { socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } })); } return; } if (currentGameState.currentPlayer !== myColor) { return; } const piece = currentGameState.board[row][col]; if (piece && piece.color === myColor) { selectedPosition = { row, col }; const validMoves = getClientSideValidMoves(row, col); renderGame(currentGameState, currentGameState.nicknames); highlightValidMoves(validMoves); } else if (selectedPosition) { socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]); } });
-        chatForm.addEventListener('submit', (e) => { e.preventDefault(); const message = chatInput.value; if (message.trim()) { socket.send(JSON.stringify({ type: 'chat', message: message })); displayChatMessage(`[${myNickname || 'Me'}] ${message}`, 'me'); chatInput.value = ''; } });
-        playAgainBtn.addEventListener('click', () => { socket.send(JSON.stringify({ type: 'playAgainRequest' })); playAgainBtn.textContent = getText('play_again_waiting'); playAgainBtn.disabled = true; });
+        ui.boardElement.addEventListener('click', (e) => { if (isAnimating || !currentGameState.board || currentGameState.gameOver) return; const target = e.target.closest('.square'); if (!target) return; const row = parseInt(target.dataset.row); const col = parseInt(target.dataset.col); if (currentGameState.gameState === 'choosing_promotion') { if (currentGameState.currentPlayer === myColor) { socket.send(JSON.stringify({ type: 'promotionChoice', pos: { row, col } })); } return; } if (currentGameState.currentPlayer !== myColor) { return; } const piece = currentGameState.board[row][col]; if (piece && piece.color === myColor) { selectedPosition = { row, col }; const validMoves = getClientSideValidMoves(row, col); renderGame(currentGameState, currentGameState.nicknames); highlightValidMoves(validMoves); } else if (selectedPosition) { socket.send(JSON.stringify({ type: 'move', from: selectedPosition, to: { row, col } })); selectedPosition = null; highlightValidMoves([]); } });
+        ui.chatForm.addEventListener('submit', (e) => { e.preventDefault(); const message = ui.chatInput.value; if (message.trim()) { socket.send(JSON.stringify({ type: 'chat', message: message })); displayChatMessage(`[${myNickname || 'Me'}] ${message}`, 'me'); ui.chatInput.value = ''; } });
+        ui.playAgainBtn.addEventListener('click', () => { socket.send(JSON.stringify({ type: 'playAgainRequest' })); ui.playAgainBtn.textContent = getText('play_again_waiting'); ui.playAgainBtn.disabled = true; });
         function requestUndo() { socket.send(JSON.stringify({ type: 'undoRequest' })); }
         function requestRedo() { socket.send(JSON.stringify({ type: 'redoRequest' })); }
         function resignGame() { if (confirm(getText('resign_confirm'))) { socket.send(JSON.stringify({ type: 'resign' })); } }
